@@ -1,101 +1,129 @@
+use std::{thread, time};
+
 use lapin::{
-    options::{BasicPublishOptions, ExchangeDeclareOptions},
+    message::Delivery,
+    options::{BasicConsumeOptions, BasicPublishOptions},
     types::FieldTable,
-    BasicProperties, Channel, Connection, ConnectionProperties, ExchangeKind,
+    BasicProperties, Channel, Connection, ConnectionProperties,
 };
-use tokio::sync::mpsc::UnboundedReceiver;
 
-pub struct RmqServerOptions {
-    // rabbitmq uri
+use tokio::sync::{mpsc::UnboundedSender, RwLock};
+use tokio_stream::StreamExt;
+
+use crate::utils::errors;
+
+#[derive(Debug)]
+pub struct Options {
     pub uri: String,
-
-    // the exchange to send tracker events to
-    pub tracker_events_exchange: String,
-}
-
-pub struct RmqServer {
-    options: RmqServerOptions,
-    channel: Channel,
-    reciever: UnboundedReceiver<RmqMessage>,
+    pub queue: String,
+    pub consumer_tag: String,
 }
 
 #[derive(Debug)]
-pub struct RmqMessage {
-    pub routing_key: String,
-    pub body: String, // TODO: must be bytes ?
+pub struct Server {
+    options: Options,
+    channel: RwLock<Option<Channel>>,
+    connection: RwLock<Option<Connection>>,
+    sender: UnboundedSender<Delivery>,
 }
 
-impl RmqServer {
-    pub async fn new(
-        options: RmqServerOptions,
-        reciever: UnboundedReceiver<RmqMessage>,
-    ) -> Result<RmqServer, lapin::Error> {
-        let conn_options = ConnectionProperties::default()
+impl Server {
+    pub fn new(opts: Options, sender: UnboundedSender<Delivery>) -> Server {
+        Server {
+            options: opts,
+            sender: sender,
+            channel: RwLock::new(None),
+            connection: RwLock::new(None),
+        }
+    }
+
+    pub async fn start(&self) {
+        loop {
+            match self.run().await {
+                Ok(_) => println!("[RMQ] consumer stream closed without returning an error"),
+                Err(err) => println!("[RMQ] connection error: {}", err),
+            }
+
+            thread::sleep(time::Duration::from_secs(5));
+            println!("[RMQ] reconecting");
+        }
+    }
+
+    async fn run(&self) -> Result<(), lapin::Error> {
+        let props = ConnectionProperties::default()
             .with_executor(tokio_executor_trait::Tokio::current())
             .with_reactor(tokio_reactor_trait::Tokio);
 
-        let connection = Connection::connect(&options.uri, conn_options).await?;
+        let connection = Connection::connect(&self.options.uri, props).await?;
         println!("[RMQ] connected");
 
         let channel = connection.create_channel().await?;
         println!("[RMQ] channel created");
 
-        channel
-            .exchange_declare(
-                &options.tracker_events_exchange,
-                ExchangeKind::Topic,
-                ExchangeDeclareOptions {
-                    nowait: false,
-                    passive: false,
-                    durable: true,
-                    internal: false,
-                    auto_delete: false,
-                },
-                FieldTable::default(),
-            )
-            .await?;
-        println!("[RMQ] tracker events exchange created");
+        let queue_opts = lapin::options::QueueDeclareOptions {
+            nowait: false,
+            passive: false,
+            durable: true,
+            exclusive: false,
+            auto_delete: false,
+        };
 
-        Ok(RmqServer {
-            options,
-            channel,
-            reciever,
-        })
-    }
+        errors::exit_on_err(
+            channel
+                .queue_declare(&self.options.queue, queue_opts, FieldTable::default())
+                .await,
+        );
+        println!("[RMQ] mailer queue declared");
 
-    // TODO: document me properly once the scope is set
-    /// listens to the self.reciever channel until its dropped
-    pub async fn start_message_consumer(&mut self) {
-        println!("[RMQ] listening to messages to send");
+        let mut consumer = errors::exit_on_err(
+            channel
+                .basic_consume(
+                    &self.options.queue,
+                    &self.options.consumer_tag,
+                    BasicConsumeOptions::default(),
+                    FieldTable::default(),
+                )
+                .await,
+        );
+        println!("[RMQ] mailer queue consumer started");
 
-        loop {
-            let x = self.reciever.recv().await;
+        *self.connection.write().await = Some(connection);
+        *self.channel.write().await = Some(channel);
 
-            match x {
-                None => {
-                    println!("[RMQ] listener stopped");
-                    return;
+        while let Some(delivery) = consumer.next().await {
+            match delivery {
+                Ok(delivery) => {
+                    // the sender channel should be open for the entirety of the programn
+                    self.sender.send(delivery).expect("sender channel closed");
                 }
-                Some(rmq_msg) => {
-                    println!(
-                        "got routing_key = {}, msg = {}",
-                        rmq_msg.routing_key, rmq_msg.body
-                    );
-
-                    self.channel
-                        .basic_publish(
-                            &self.options.tracker_events_exchange,
-                            "ds",
-                            BasicPublishOptions::default(),
-                            b"Hello world!",
-                            BasicProperties::default(),
-                        )
-                        .await
-                        .unwrap()
-                        .await
-                        .unwrap();
+                Err(err) => {
+                    println!("[RMQ] mailer queue consumer stopped due to error: {}", err);
+                    return Err(err);
                 }
             }
         }
+
+        Ok(())
+    }
+
+    // TODO: remove mocked publishing
+    pub async fn publish(&self) {
+        self.channel
+            .read()
+            .await
+            .as_ref()
+            // TODO: rm unwrap !
+            .unwrap()
+            .basic_publish(
+                "",
+                "dev_test_queue",
+                BasicPublishOptions::default(),
+                b"Hello world!",
+                BasicProperties::default(),
+            )
+            .await
+            .unwrap()
+            .await
+            .unwrap();
     }
 }
