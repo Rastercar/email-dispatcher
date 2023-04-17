@@ -25,3 +25,4 @@ A postgres db is used to store the sent emails and their events
 - document jaeger and jaeger setup
 - finish basic functionality
 - document DTOS (async api ?)
+- gracefull shutdown

@@ -7,6 +7,7 @@ mod config;
 mod controller;
 mod queue;
 mod trace;
+
 mod utils {
     pub mod errors;
 }
