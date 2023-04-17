@@ -7,8 +7,11 @@ use lapin::{
 use routes::default;
 use std::sync::Arc;
 
-mod dto;
-mod validation;
+pub mod validation;
+mod dto {
+    pub mod events;
+    pub mod input;
+}
 mod routes {
     pub mod default;
     pub mod email;

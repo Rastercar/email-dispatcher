@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use validator::Validate;
 
-use super::validation::email_vec;
+use super::super::validation::email_vec;
 
 #[derive(Debug, Validate, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,12 +26,9 @@ struct EmailRecipient {
 #[derive(Debug, Validate, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SendEmailIn {
-    // TODO: use ?
-    // TODO: validate is uuid
-    // https://github.com/uuid-rs/uuid
     /// A unique identifier for the email sending request, this is so the client can store this on
     /// his side and use this identifier on future requests, such as getting metrics for this uuid
-    uuid: Option<String>,
+    uuid: Option<uuid::Uuid>,
 
     // TODO: test validation allows named <name> emails and ignore None values
     /// The RFC5322 email address to be used to send the email, if None the service default address is used
