@@ -26,3 +26,4 @@ A postgres db is used to store the sent emails and their events
 - finish basic functionality
 - document DTOS (async api ?)
 - gracefull shutdown
+- send rejection cause on a sendEmail rejected event

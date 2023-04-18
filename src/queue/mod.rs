@@ -2,9 +2,12 @@ use std::{thread, time};
 
 use lapin::{
     message::Delivery,
-    options::{BasicConsumeOptions, BasicPublishOptions},
+    options::{
+        BasicConsumeOptions, BasicPublishOptions, ExchangeDeclareOptions, QueueDeclareOptions,
+    },
+    publisher_confirm::PublisherConfirm,
     types::FieldTable,
-    BasicProperties, Channel, Connection, ConnectionProperties,
+    BasicProperties, Channel, Connection, ConnectionProperties, ExchangeKind,
 };
 
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
@@ -12,11 +15,15 @@ use tokio_stream::StreamExt;
 
 use crate::utils::errors;
 
+static ERR_EMPTY_CHANNEL: &str = "channel not set";
+static ERR_PUBLISH_CONFIRM: &str = "failed to confirm publishing";
+
 #[derive(Debug)]
 pub struct Options {
     pub uri: String,
     pub queue: String,
     pub consumer_tag: String,
+    pub email_events_exchange: String,
 }
 
 #[derive(Debug)]
@@ -60,17 +67,37 @@ impl Server {
         let channel = connection.create_channel().await?;
         println!("[RMQ] channel created");
 
-        let queue_opts = lapin::options::QueueDeclareOptions {
-            nowait: false,
-            passive: false,
-            durable: true,
-            exclusive: false,
-            auto_delete: false,
-        };
+        errors::exit_on_err(
+            channel
+                .exchange_declare(
+                    &self.options.email_events_exchange,
+                    ExchangeKind::Topic,
+                    ExchangeDeclareOptions {
+                        passive: false,
+                        durable: true,
+                        auto_delete: false,
+                        internal: false,
+                        nowait: false,
+                    },
+                    FieldTable::default(),
+                )
+                .await,
+        );
+        println!("[RMQ] events exchange declared");
 
         errors::exit_on_err(
             channel
-                .queue_declare(&self.options.queue, queue_opts, FieldTable::default())
+                .queue_declare(
+                    &self.options.queue,
+                    QueueDeclareOptions {
+                        nowait: false,
+                        passive: false,
+                        durable: true,
+                        exclusive: false,
+                        auto_delete: false,
+                    },
+                    FieldTable::default(),
+                )
                 .await,
         );
         println!("[RMQ] mailer queue declared");
@@ -106,24 +133,40 @@ impl Server {
         Ok(())
     }
 
-    // TODO: remove mocked publishing
-    pub async fn publish(&self) {
+    pub async fn publish(
+        &self,
+        exchange: &str,
+        routing_key: &str,
+        payload: &[u8],
+        properties: BasicProperties,
+    ) -> Result<PublisherConfirm, String> {
         self.channel
             .read()
             .await
             .as_ref()
-            // TODO: rm unwrap !
-            .unwrap()
+            .ok_or(ERR_EMPTY_CHANNEL)?
             .basic_publish(
-                "",
-                "dev_test_queue",
+                exchange,
+                routing_key,
                 BasicPublishOptions::default(),
-                b"Hello world!",
-                BasicProperties::default(),
+                payload,
+                properties,
             )
             .await
-            .unwrap()
-            .await
-            .unwrap();
+            .or(Err(ERR_PUBLISH_CONFIRM.to_owned()))
+    }
+
+    pub async fn publish_event(
+        &self,
+        routing_key: &str,
+        payload: &[u8],
+    ) -> Result<PublisherConfirm, String> {
+        self.publish(
+            &self.options.email_events_exchange,
+            routing_key,
+            payload,
+            BasicProperties::default(),
+        )
+        .await
     }
 }

@@ -20,6 +20,10 @@ fn def_tracer_service_name() -> String {
     "mailer".to_string()
 }
 
+fn def_email_events_exchange() -> String {
+    "email_events".to_string()
+}
+
 #[derive(Deserialize, Debug)]
 pub struct AppConfig {
     #[serde(default = "def_debug")]
@@ -36,6 +40,9 @@ pub struct AppConfig {
 
     #[serde(default = "def_rmq_consumer_tag")]
     pub rmq_consumer_tag: String,
+
+    #[serde(default = "def_email_events_exchange")]
+    pub email_events_exchange: String,
 }
 
 impl AppConfig {

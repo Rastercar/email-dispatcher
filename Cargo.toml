@@ -16,7 +16,7 @@ tokio-executor-trait = "2.1.0"
 tokio-reactor-trait = "1.1.0"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde", "clock"] }
 opentelemetry = { version = "0.18.0", features = ["rt-tokio", "metrics"] }
 opentelemetry-jaeger = { version = "0.17.0", features = ["rt-tokio"] }
 tracing = "0.1.37"

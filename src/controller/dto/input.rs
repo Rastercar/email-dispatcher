@@ -8,19 +8,18 @@ use super::super::validation::email_vec;
 
 #[derive(Debug, Validate, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct EmailRecipient {
+pub struct EmailRecipient {
     /// recipient email address
     #[validate(email)]
-    email: String,
+    pub email: String,
 
-    // TODO: study how to pass/validate a map[string]string here
     /// An array of email adresses to send the email to and the
     /// replacements to use on the email html for that email address, eg:
     ///
     /// ```
     /// { email: "jhon@gmail.com", replacements: { "name": "jhon" } }
     /// ```
-    replacements: HashMap<String, String>,
+    pub replacements: HashMap<String, String>,
 }
 
 #[derive(Debug, Validate, Deserialize)]
@@ -28,32 +27,31 @@ struct EmailRecipient {
 pub struct SendEmailIn {
     /// A unique identifier for the email sending request, this is so the client can store this on
     /// his side and use this identifier on future requests, such as getting metrics for this uuid
-    uuid: Option<uuid::Uuid>,
+    pub uuid: Option<uuid::Uuid>,
 
-    // TODO: test validation allows named <name> emails and ignore None values
+    // TODO: make this work with RFC5322 emails
     /// The RFC5322 email address to be used to send the email, if None the service default address is used
     #[validate(email)]
-    sender: Option<String>,
+    pub sender: Option<String>,
 
     // TODO: test nested validation is called
     /// List of recipients for the email
     #[validate]
-    to: Vec<EmailRecipient>,
+    pub to: Vec<EmailRecipient>,
 
     // TODO: validate size of strings in vec ?
     /// Tags to store in the email, eg: ("marketing", "alert", "sample_offer")
-    tags: Vec<String>,
+    pub tags: Vec<String>,
 
-    // TODO: test validation of strings in vect
     /// List of email adresses to show on the email reply-to options, only makes
     /// sense if at least one email address different than the sender is used
     #[validate(custom = "email_vec")]
-    reply_to_adresses: Option<Vec<String>>,
+    pub reply_to_adresses: Option<Vec<String>>,
 
-    subject_text: String,
+    pub subject_text: String,
 
-    body_html: String,
+    pub body_html: String,
 
     /// Optional email text content: displayed on clients that do not support Html
-    body_text: Option<String>,
+    pub body_text: Option<String>,
 }
