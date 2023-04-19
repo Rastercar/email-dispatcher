@@ -1,30 +1,22 @@
-use crate::queue;
+use crate::{mail::mailer::Mailer, queue::server};
 use lapin::{
     message::Delivery,
     options::{BasicAckOptions, BasicNackOptions},
     types::ShortString,
 };
-use routes::default;
 use std::sync::Arc;
 
-pub mod validation;
-mod dto {
-    pub mod events;
-    pub mod input;
-}
-mod routes {
-    pub mod default;
-    pub mod email;
-}
+use super::routes::default;
 
 #[derive(Debug)]
 pub struct Router {
-    server: Arc<queue::Server>,
+    pub server: Arc<server::Server>,
+    pub mailer: Mailer,
 }
 
 impl Router {
-    pub fn new(server: Arc<queue::Server>) -> Router {
-        Router { server }
+    pub fn new(server: Arc<server::Server>, mailer: Mailer) -> Router {
+        Router { server, mailer }
     }
 
     pub async fn handle_delivery(&self, delivery: Delivery) {
@@ -33,12 +25,10 @@ impl Router {
             _ => default::handle_delivery_without_corresponding_rpc(delivery).await,
         };
 
+        // TODO: trace/log error on jaeger !?
         if let Err(err) = handler_res {
             // TODO: RM ME!
             println!("err -> {}", err);
-
-            // TODO: trace/log error on jaeger !?
-            todo!("log error, {}", err)
         }
     }
 }

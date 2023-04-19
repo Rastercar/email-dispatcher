@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use lapin::publisher_confirm::PublisherConfirm;
 use serde::{Deserialize, Serialize};
 
-use crate::queue::Server;
+use crate::queue::server::Server;
 
 #[derive(strum_macros::Display, Deserialize, Serialize)]
 pub enum EmailRequestStatus {

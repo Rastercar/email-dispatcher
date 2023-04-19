@@ -6,7 +6,7 @@ use validator::Validate;
 
 use super::super::validation::email_vec;
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailRecipient {
     /// recipient email address
@@ -34,7 +34,7 @@ pub struct SendEmailIn {
     #[validate(email)]
     pub sender: Option<String>,
 
-    // TODO: test nested validation is called
+    // TODO: validate contains at least one
     /// List of recipients for the email
     #[validate]
     pub to: Vec<EmailRecipient>,
@@ -48,10 +48,14 @@ pub struct SendEmailIn {
     #[validate(custom = "email_vec")]
     pub reply_to_adresses: Option<Vec<String>>,
 
-    pub subject_text: String,
+    pub subject: String,
 
-    pub body_html: String,
+    pub body_html: Option<String>,
 
     /// Optional email text content: displayed on clients that do not support Html
     pub body_text: Option<String>,
+
+    /// If tracking for email events such as clicks and opens should be enabled
+    #[serde(default)]
+    pub enable_tracking: bool,
 }

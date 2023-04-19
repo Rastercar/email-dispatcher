@@ -1,5 +1,3 @@
-use std::{thread, time};
-
 use lapin::{
     message::Delivery,
     options::{
@@ -9,11 +7,11 @@ use lapin::{
     types::FieldTable,
     BasicProperties, Channel, Connection, ConnectionProperties, ExchangeKind,
 };
-
+use std::{thread, time};
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
 use tokio_stream::StreamExt;
 
-use crate::utils::errors;
+use crate::{config, utils::errors};
 
 static ERR_EMPTY_CHANNEL: &str = "channel not set";
 static ERR_PUBLISH_CONFIRM: &str = "failed to confirm publishing";
@@ -35,10 +33,17 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(opts: Options, sender: UnboundedSender<Delivery>) -> Server {
+    pub fn new(cfg: &config::AppConfig, sender: UnboundedSender<Delivery>) -> Server {
+        let options = Options {
+            uri: cfg.rmq_uri.to_owned(),
+            queue: cfg.rmq_queue.to_owned(),
+            consumer_tag: cfg.rmq_consumer_tag.to_owned(),
+            email_events_exchange: cfg.rmq_email_events_exchange.to_owned(),
+        };
+
         Server {
-            options: opts,
             sender: sender,
+            options: options,
             channel: RwLock::new(None),
             connection: RwLock::new(None),
         }

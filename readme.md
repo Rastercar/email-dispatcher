@@ -16,7 +16,6 @@ this service declares and publishes events to a exchange so consumers can reciev
 A postgres db is used to store the sent emails and their events
 
 ### TODO (to release v1.0)
-- integrate with aws ses rust sdk
 - document dev setup
 - docker and docker docs
 - document required postgres, aws ses, rabbitmq setup
@@ -27,3 +26,5 @@ A postgres db is used to store the sent emails and their events
 - document DTOS (async api ?)
 - gracefull shutdown
 - send rejection cause on a sendEmail rejected event
+- rate limiting
+- handlebars templates support,

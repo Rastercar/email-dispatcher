@@ -1,12 +1,13 @@
 use lapin::message::Delivery;
-use tracing::info;
 use uuid::Uuid;
 use validator::Validate;
 
-use crate::controller::{
-    ack_delivery,
-    dto::{events::EmailRequestEvent, input},
-    Router,
+use crate::{
+    controller::{
+        dto::{events::EmailRequestEvent, input},
+        router::{ack_delivery, Router},
+    },
+    mail::mailer::SendEmailOptions,
 };
 
 impl Router {
@@ -31,9 +32,14 @@ impl Router {
             .publish(self.server.clone())
             .await?;
 
-        println!("{:#?}", send_email_in);
-
-        info!("send email starting");
+        self.mailer.schedule_email_sendings(SendEmailOptions {
+            to: send_email_in.to,
+            from: send_email_in.sender,
+            subject: send_email_in.subject,
+            body_text: send_email_in.body_text,
+            body_html: send_email_in.body_html,
+            track_events: send_email_in.enable_tracking,
+        })?;
 
         Ok(())
     }
