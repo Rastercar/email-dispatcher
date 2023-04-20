@@ -32,14 +32,17 @@ impl Router {
             .publish(self.server.clone())
             .await?;
 
-        self.mailer.schedule_email_sendings(SendEmailOptions {
-            to: send_email_in.to,
-            from: send_email_in.sender,
-            subject: send_email_in.subject,
-            body_text: send_email_in.body_text,
-            body_html: send_email_in.body_html,
-            track_events: send_email_in.enable_tracking,
-        })?;
+        self.mailer
+            .schedule_email_sendings(SendEmailOptions {
+                uuid,
+                to: send_email_in.to,
+                from: send_email_in.sender,
+                subject: send_email_in.subject,
+                body_text: send_email_in.body_text,
+                body_html: send_email_in.body_html,
+                track_events: send_email_in.enable_tracking,
+            })
+            .await?;
 
         Ok(())
     }

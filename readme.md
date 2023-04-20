@@ -16,15 +16,13 @@ this service declares and publishes events to a exchange so consumers can reciev
 A postgres db is used to store the sent emails and their events
 
 ### TODO (to release v1.0)
-- document dev setup
 - docker and docker docs
+- document dev setup
 - document required postgres, aws ses, rabbitmq setup
-- create a example consumer repository
-- create a logo ?
 - document jaeger and jaeger setup
-- finish basic functionality
 - document DTOS (async api ?)
+- create a logo ?
+- create a example consumer repository
+- finish basic functionality
 - gracefull shutdown
-- send rejection cause on a sendEmail rejected event
 - rate limiting
-- handlebars templates support,

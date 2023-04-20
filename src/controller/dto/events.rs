@@ -33,6 +33,14 @@ impl EmailRequestEvent {
         }
     }
 
+    pub fn finished(request_uuid: uuid::Uuid) -> EmailRequestEvent {
+        EmailRequestEvent {
+            status: EmailRequestStatus::FINISHED,
+            timestamp: Utc::now(),
+            request_uuid,
+        }
+    }
+
     pub fn rejected(request_uuid: uuid::Uuid) -> EmailRequestEvent {
         EmailRequestEvent {
             status: EmailRequestStatus::REJECTED,
