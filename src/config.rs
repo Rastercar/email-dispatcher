@@ -36,6 +36,10 @@ fn def_aws_ses_tracking_config_set() -> String {
     "track-all".to_string()
 }
 
+fn def_aws_ses_max_emails_per_second() -> u32 {
+    1
+}
+
 #[derive(Deserialize, Debug)]
 pub struct AppConfig {
     /// If the application should be run in debug mode and print additional info to stdout
@@ -70,6 +74,12 @@ pub struct AppConfig {
     #[serde(default = "def_aws_ses_tracking_config_set")]
     pub aws_ses_tracking_config_set: String,
 
+    /// Maximun amount of sendEmail operations per second for the AWS account.
+    /// defaults to 1, the value for sandboxed accounds
+    /// see: https://docs.aws.amazon.com/ses/latest/dg/manage-sending-quotas.html
+    #[serde(default = "def_aws_ses_max_emails_per_second")]
+    pub aws_ses_max_emails_per_second: u32,
+
     /// Email address to be used to send emails if the caller does not specify a address
     #[serde(default = "def_app_default_email_sender")]
     pub app_default_email_sender: String,
@@ -80,7 +90,7 @@ impl AppConfig {
         match envy::from_env::<AppConfig>() {
             Ok(config) => {
                 if config.debug {
-                    println!("[CFG] {:?}", config);
+                    println!("[CFG] {:#?}", config);
                 }
 
                 Ok(config)

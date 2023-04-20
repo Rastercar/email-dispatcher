@@ -1,16 +1,25 @@
 use crate::{
     config,
     controller::dto::{events::EmailRequestEvent, input},
-    queue::server::{self, Server},
+    queue::server::{self},
 };
 use aws_sdk_sesv2::{
+    client::customize::Response,
     config::Region,
-    operation::send_email::builders::SendEmailFluentBuilder,
+    error::SdkError,
+    operation::send_email::{builders::SendEmailFluentBuilder, SendEmailError, SendEmailOutput},
     types::{Body, Content, Destination, EmailContent, Message},
     Client,
 };
+use governor::{
+    clock::{QuantaClock, QuantaInstant},
+    middleware::NoOpMiddleware,
+    state::{InMemoryState, NotKeyed},
+    Quota,
+};
 use handlebars::Handlebars;
-use std::sync::Arc;
+use std::{num::NonZeroU32, sync::Arc};
+use tokio::task::JoinSet;
 use uuid::Uuid;
 
 /// see: https://docs.aws.amazon.com/ses/latest/APIReference/API_SendEmail.html
@@ -37,24 +46,24 @@ pub struct SendEmailOptions {
     pub track_events: bool,
 }
 
+type RateLimiter =
+    governor::RateLimiter<NotKeyed, InMemoryState, QuantaClock, NoOpMiddleware<QuantaInstant>>;
+
 #[derive(Debug)]
 pub struct Mailer {
     pub server: Arc<server::Server>,
     pub aws_client: Client,
+    pub rate_limiter: Arc<RateLimiter>,
     pub default_sender: String,
     pub aws_ses_tracking_config_set: String,
 }
 
-// TODO: rate limiting ?
-async fn send_email_to_ses(
-    email_req: SendEmailFluentBuilder,
-    on_send_event: Option<(EmailRequestEvent, Arc<Server>)>,
-) {
-    email_req.send().await;
-
-    if let Some((event, server)) = on_send_event {
-        event.publish(server).await;
-    }
+async fn send_with_rate_limiter(
+    rate_limiter: Arc<RateLimiter>,
+    send_email_op: SendEmailFluentBuilder,
+) -> Result<SendEmailOutput, SdkError<SendEmailError, Response>> {
+    rate_limiter.until_ready().await;
+    send_email_op.send().await
 }
 
 impl Mailer {
@@ -64,8 +73,12 @@ impl Mailer {
             .load()
             .await;
 
+        let time_limit = NonZeroU32::new(cfg.aws_ses_max_emails_per_second).unwrap();
+        let rate_limiter = governor::RateLimiter::direct(Quota::per_second(time_limit));
+
         Mailer {
             server,
+            rate_limiter: Arc::new(rate_limiter),
             aws_client: Client::new(&aws_cfg),
             default_sender: cfg.app_default_email_sender.to_owned(),
             aws_ses_tracking_config_set: cfg.aws_ses_tracking_config_set.to_owned(),
@@ -91,19 +104,22 @@ impl Mailer {
             None
         };
 
-        let (recipients_without_replacements, recipients_with_replacements): (_, Vec<_>) = options
-            .to
-            .clone()
-            .into_iter()
-            .partition(|recipient| recipient.replacements.is_empty());
+        let (recipients_without_replacements, recipients_with_replacements): (_, Vec<_>) =
+            options.to.clone().into_iter().partition(|recipient| {
+                if let Some(replacements) = &recipient.replacements {
+                    return replacements.is_empty();
+                }
+                return false;
+            });
+
+        let mut send_email_tasks = JoinSet::new();
 
         if !recipients_with_replacements.is_empty() {
             let mut reg = Handlebars::new();
 
             let template_registered = reg.register_template_string(&uuid_str, &html).is_ok();
 
-            let mut it = recipients_with_replacements.iter().peekable();
-            while let Some(recipient) = it.next() {
+            for recipient in recipients_with_replacements {
                 let recipient_html = if template_registered {
                     reg.render(&uuid_str, &recipient.replacements)
                         .unwrap_or(html.clone())
@@ -127,30 +143,15 @@ impl Mailer {
                     .to_addresses(recipient.email.clone())
                     .build();
 
-                let builder = self
-                    .aws_client
-                    .send_email()
-                    .from_email_address(from.clone())
-                    .destination(dest)
-                    .set_configuration_set_name(config_set.clone())
-                    .content(email_content.clone());
-
-                let is_last_email_op =
-                    it.peek().is_none() && recipients_without_replacements.is_empty();
-
-                let mut on_finish_event: Option<(EmailRequestEvent, Arc<Server>)> = None;
-                if is_last_email_op {
-                    on_finish_event = Some((
-                        EmailRequestEvent::finished(options.uuid),
-                        self.server.clone(),
-                    ))
-                }
-
-                // TODO: this approach is wrong, as there is no guarantee that this task will be executed last
-                // also the code looks like crap, a much more sane solution would be to join all the futures
-                // created by recipients_with_replacements and recipients_without_replacements and publish the
-                // event once theyre done
-                tokio::spawn(async move { send_email_to_ses(builder, on_finish_event).await });
+                send_email_tasks.spawn(send_with_rate_limiter(
+                    self.rate_limiter.clone(),
+                    self.aws_client
+                        .send_email()
+                        .from_email_address(from.clone())
+                        .destination(dest)
+                        .set_configuration_set_name(config_set.clone())
+                        .content(email_content.clone()),
+                ));
             }
         }
 
@@ -161,11 +162,7 @@ impl Mailer {
                 MAX_RECIPIENTS_PER_SEND_EMAIL_OP
             };
 
-            let mut it = recipients_without_replacements
-                .chunks(chunk_size)
-                .peekable();
-
-            while let Some(recipient_chunk) = it.next() {
+            for recipient_chunk in recipients_without_replacements.chunks(chunk_size) {
                 let chunk_emails = recipient_chunk
                     .to_vec()
                     .iter()
@@ -188,27 +185,23 @@ impl Mailer {
                     .set_to_addresses(Some(chunk_emails))
                     .build();
 
-                let builder = self
-                    .aws_client
-                    .send_email()
-                    .from_email_address(from.clone())
-                    .destination(dest)
-                    .set_configuration_set_name(config_set.clone())
-                    .content(email_content.clone());
-
-                let is_last_email_op = it.peek().is_none();
-
-                let mut on_finish_event: Option<(EmailRequestEvent, Arc<Server>)> = None;
-                if is_last_email_op {
-                    on_finish_event = Some((
-                        EmailRequestEvent::finished(options.uuid),
-                        self.server.clone(),
-                    ))
-                }
-
-                tokio::spawn(async move { send_email_to_ses(builder, on_finish_event).await });
+                send_email_tasks.spawn(send_with_rate_limiter(
+                    self.rate_limiter.clone(),
+                    self.aws_client
+                        .send_email()
+                        .from_email_address(from.clone())
+                        .destination(dest)
+                        .set_configuration_set_name(config_set.clone())
+                        .content(email_content.clone()),
+                ));
             }
         }
+
+        while let Some(_) = send_email_tasks.join_next().await {}
+
+        EmailRequestEvent::finished(options.uuid)
+            .publish(self.server.clone())
+            .await?;
 
         Ok(())
     }

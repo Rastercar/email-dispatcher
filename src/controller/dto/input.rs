@@ -19,7 +19,7 @@ pub struct EmailRecipient {
     /// ```
     /// { email: "jhon@gmail.com", replacements: { "name": "jhon" } }
     /// ```
-    pub replacements: HashMap<String, String>,
+    pub replacements: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Validate, Deserialize)]

@@ -46,6 +46,8 @@ async fn main() {
 
     tokio::spawn(async move { server.start().await });
 
+    // TODO: spaw a simple endpoin for recieving SES events
+
     while let Some(delivery) = reciever.recv().await {
         let router = router.clone();
         tokio::spawn(async move { router.handle_delivery(delivery).await });
