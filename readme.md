@@ -11,18 +11,15 @@ and binding them to said queue, although this would require the mailer queue to 
 
 this service declares and publishes events to a exchange so consumers can recieve events such as when a email was sent, clicked, reported, etc.
 
-## Datastore
-
-A postgres db is used to store the sent emails and their events
-
 ### TODO (to release v1.0)
 - docker and docker docs
-- document dev setup
-- document required postgres, aws ses, rabbitmq setup
+- document dev setup with ngrok
+- document aws ses, rabbitmq setup
 - document jaeger and jaeger setup
 - document DTOS (async api ?)
+- remove postgres from readme diagram
 - create a logo ?
 - create a example consumer repository
 - finish basic functionality
 - gracefull shutdown
-- rate limiting
+- document the need for rate limiting if using more pods

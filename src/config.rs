@@ -33,7 +33,13 @@ fn def_app_default_email_sender() -> String {
 }
 
 fn def_aws_ses_tracking_config_set() -> String {
-    "track-all".to_string()
+    "email-events".to_string()
+}
+
+// TODO: RM ME ! (there is no problem in leaking this but remove me anyway as or make this be a Option() and apply the middleware only if present)
+fn def_aws_sns_tracking_subscription_arn() -> String {
+    "arn:aws:sns:us-east-1:152409327412:email-events:333db96d-367b-4b95-a552-86b08c2a397b"
+        .to_string()
 }
 
 fn def_aws_ses_max_emails_per_second() -> u32 {
@@ -73,6 +79,11 @@ pub struct AppConfig {
     /// Name of the SES configuration set to be used to track email events (clicks, opens, etc)
     #[serde(default = "def_aws_ses_tracking_config_set")]
     pub aws_ses_tracking_config_set: String,
+
+    /// AWS ARN of the SNS subscription used to publish tracked email events to this service,
+    /// important to validate the sender of email events
+    #[serde(default = "def_aws_sns_tracking_subscription_arn")]
+    pub aws_sns_tracking_subscription_arn: String,
 
     /// Maximun amount of sendEmail operations per second for the AWS account.
     /// defaults to 1, the value for sandboxed accounds

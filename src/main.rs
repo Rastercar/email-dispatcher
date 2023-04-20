@@ -25,6 +25,9 @@ mod mail {
 mod queue {
     pub mod server;
 }
+mod http {
+    pub mod server;
+}
 mod trace;
 mod utils {
     pub mod errors;
@@ -46,7 +49,7 @@ async fn main() {
 
     tokio::spawn(async move { server.start().await });
 
-    // TODO: spaw a simple endpoin for recieving SES events
+    tokio::spawn(async move { http::server::serve(&cfg).await });
 
     while let Some(delivery) = reciever.recv().await {
         let router = router.clone();

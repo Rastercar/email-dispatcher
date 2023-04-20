@@ -1,21 +1,4 @@
-use std::fmt::Debug;
-
-use lapin::message::Delivery;
-use validator::{validate_email, Validate, ValidationError};
-
-// TODO: use me on other routes
-pub fn parse_validate<'a, T: Debug + serde::Deserialize<'a> + Validate>(
-    delivery: &'a Delivery,
-) -> Result<T, String> {
-    let parsed = serde_json::from_slice::<'a, T>(&delivery.data)
-        .or_else(|e| Err(format!("parse error: {:#?}", e)))?;
-
-    parsed
-        .validate()
-        .or_else(|e| Err(format!("validation error: {:#?}", e)))?;
-
-    Ok(parsed)
-}
+use validator::{validate_email, ValidationError};
 
 pub fn email_vec(emails: &Vec<String>) -> Result<(), ValidationError> {
     for email in emails {
