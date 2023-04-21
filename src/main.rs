@@ -15,6 +15,7 @@ mod controller {
     pub mod dto {
         pub mod events;
         pub mod input;
+        pub mod ses;
     }
     pub mod router;
     pub mod validation;

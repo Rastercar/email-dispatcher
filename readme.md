@@ -1,6 +1,6 @@
 # Mailer
 
-A simple email sending micro service, made for asynchonous and event based systems with rabbitmq and AWS SES.
+A simple email sending micro service, made for asynchonous and event based systems with Rabbitmq and AWS SES.
 
 ## Architecture
 

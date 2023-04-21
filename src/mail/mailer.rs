@@ -8,7 +8,7 @@ use aws_sdk_sesv2::{
     config::Region,
     error::SdkError,
     operation::send_email::{builders::SendEmailFluentBuilder, SendEmailError, SendEmailOutput},
-    types::{Body, Content, Destination, EmailContent, Message},
+    types::{Body, Content, Destination, EmailContent, Message, MessageTag},
     Client,
 };
 use governor::{
@@ -89,7 +89,14 @@ impl Mailer {
         Content::builder().data(input).charset("UTF-8").build()
     }
 
-    pub async fn schedule_email_sendings(&self, options: SendEmailOptions) -> Result<(), String> {
+    /// Sends the emails for all the recipients in paralel, passing uuid to the email tags.
+    ///
+    /// Each recipient with non empty replacements have the `body_html` {{}} tags
+    /// replaced by the recipients replacements. Emails are send individually for
+    /// every recipient with replacements or for every recipient if `track_events` is true.
+    ///
+    /// this future resolves once all the emails have been sent
+    pub async fn send_emails(&self, options: SendEmailOptions) -> Result<(), String> {
         let html = options.body_html.unwrap_or("".to_owned());
         let text = options.body_text.unwrap_or("".to_owned());
         let subject = self.to_utf8_content(options.subject);
@@ -149,6 +156,12 @@ impl Mailer {
                         .send_email()
                         .from_email_address(from.clone())
                         .destination(dest)
+                        .email_tags(
+                            MessageTag::builder()
+                                .name("raster-email-id")
+                                .value(uuid_str.clone())
+                                .build(),
+                        )
                         .set_configuration_set_name(config_set.clone())
                         .content(email_content.clone()),
                 ));
@@ -191,6 +204,12 @@ impl Mailer {
                         .send_email()
                         .from_email_address(from.clone())
                         .destination(dest)
+                        .email_tags(
+                            MessageTag::builder()
+                                .name("raster-email-id")
+                                .value(uuid_str.clone())
+                                .build(),
+                        )
                         .set_configuration_set_name(config_set.clone())
                         .content(email_content.clone()),
                 ));
@@ -199,6 +218,8 @@ impl Mailer {
 
         while let Some(_) = send_email_tasks.join_next().await {}
 
+        // TODO: i probably dont need to be here, also check for early returns in this method as that would
+        // make us need to fire the error event
         EmailRequestEvent::finished(options.uuid)
             .publish(self.server.clone())
             .await?;

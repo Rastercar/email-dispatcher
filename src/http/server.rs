@@ -1,47 +1,60 @@
 use axum::{
     extract::State,
-    http::{HeaderMap, Request, StatusCode},
+    http::{Request, StatusCode},
     middleware::{self, Next},
     response::Response,
     routing::post,
     Router,
 };
-use serde::Deserialize;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use crate::config;
+use crate::{config, controller::dto::ses};
 
-#[derive(Deserialize)]
-struct SesEvent {
-    username: String,
-}
+async fn handle_ses_event(body: String) {
+    // TODO: test all basic SES events and publish a simplified version of them to rabbitmq
 
-async fn handle_ses_event(headers: HeaderMap, body: String) {
-    // TODO: parse /validate content a SesEvent json and publish it to rmq
-    println!("{:?}", body);
+    let sns_notification = serde_json::from_str::<ses::SnsNotification>(&body)
+        .or_else(|e| Err(format!("parse error: {:#?}", e)))
+        .unwrap();
+
+    let ses_event = serde_json::from_str::<ses::SesEvent>(&sns_notification.message)
+        .or_else(|e| Err(format!("parse error: {:#?}", e)))
+        .unwrap();
+
+    println!("==================================");
+    println!(
+        "-------- ses_event: {} --------",
+        ses_event.event_type.clone().unwrap_or("??".to_owned())
+    );
+    println!("{:#?}", ses_event);
+    println!("==================================");
 }
 
 #[derive(Clone)]
 struct AppState {
-    aws_email_sns_subscription_arn: String,
+    aws_email_sns_subscription_arn: Option<String>,
 }
 
-/// blocks any incoming requests where the x-amz-sns-subscription-arn
+/// forbids any incoming requests where the x-amz-sns-subscription-arn
 /// does not match the `aws_email_sns_subscription_arn` in the application state,
 /// in order to avoid potentially malicious requests from registering fake events
 async fn check_sns_arn<T>(
     State(state): State<AppState>,
-    request: Request<T>,
-    next: Next<T>,
+    req: Request<T>,
+    nxt: Next<T>,
 ) -> Result<Response, StatusCode> {
-    if let Some(arn_header) = request.headers().get("x-amz-sns-subscription-arn") {
-        let sns_header_matches = arn_header
-            .to_str()
-            .unwrap_or("")
-            .eq(state.aws_email_sns_subscription_arn.as_str());
+    if state.aws_email_sns_subscription_arn.is_none() {
+        return Ok(nxt.run(req).await);
+    }
+
+    if let Some(arn_header) = req.headers().get("x-amz-sns-subscription-arn") {
+        let sns_header_matches = arn_header.to_str().unwrap_or("").eq(state
+            .aws_email_sns_subscription_arn
+            .unwrap_or("".to_owned())
+            .as_str());
 
         if sns_header_matches {
-            return Ok(next.run(request).await);
+            return Ok(nxt.run(req).await);
         }
     }
 
@@ -58,7 +71,7 @@ pub async fn serve(cfg: &config::AppConfig) {
         .route_layer(middleware::from_fn_with_state(state.clone(), check_sns_arn))
         .with_state(state);
 
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 3005);
+    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), cfg.http_port);
     println!("[WEB] listening on {}", addr);
 
     axum::Server::try_bind(&addr)

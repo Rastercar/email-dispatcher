@@ -27,7 +27,6 @@ impl Router {
 
         // TODO: trace/log error on jaeger !?
         if let Err(err) = handler_res {
-            // TODO: RM ME!
             println!("err -> {}", err);
         }
     }

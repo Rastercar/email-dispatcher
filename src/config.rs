@@ -36,14 +36,12 @@ fn def_aws_ses_tracking_config_set() -> String {
     "email-events".to_string()
 }
 
-// TODO: RM ME ! (there is no problem in leaking this but remove me anyway as or make this be a Option() and apply the middleware only if present)
-fn def_aws_sns_tracking_subscription_arn() -> String {
-    "arn:aws:sns:us-east-1:152409327412:email-events:333db96d-367b-4b95-a552-86b08c2a397b"
-        .to_string()
-}
-
 fn def_aws_ses_max_emails_per_second() -> u32 {
     1
+}
+
+fn def_http_port() -> u16 {
+    3005
 }
 
 #[derive(Deserialize, Debug)]
@@ -81,15 +79,17 @@ pub struct AppConfig {
     pub aws_ses_tracking_config_set: String,
 
     /// AWS ARN of the SNS subscription used to publish tracked email events to this service,
-    /// important to validate the sender of email events
-    #[serde(default = "def_aws_sns_tracking_subscription_arn")]
-    pub aws_sns_tracking_subscription_arn: String,
+    /// important to validate the sender of email events, if None validation wont be applied
+    pub aws_sns_tracking_subscription_arn: Option<String>,
 
     /// Maximun amount of sendEmail operations per second for the AWS account.
     /// defaults to 1, the value for sandboxed accounds
     /// see: https://docs.aws.amazon.com/ses/latest/dg/manage-sending-quotas.html
     #[serde(default = "def_aws_ses_max_emails_per_second")]
     pub aws_ses_max_emails_per_second: u32,
+
+    #[serde(default = "def_http_port")]
+    pub http_port: u16,
 
     /// Email address to be used to send emails if the caller does not specify a address
     #[serde(default = "def_app_default_email_sender")]

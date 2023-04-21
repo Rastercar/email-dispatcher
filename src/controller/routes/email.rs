@@ -33,7 +33,7 @@ impl Router {
             .await?;
 
         self.mailer
-            .schedule_email_sendings(SendEmailOptions {
+            .send_emails(SendEmailOptions {
                 uuid,
                 to: send_email_in.to,
                 from: send_email_in.sender,

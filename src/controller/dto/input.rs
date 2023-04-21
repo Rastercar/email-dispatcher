@@ -39,10 +39,6 @@ pub struct SendEmailIn {
     #[validate]
     pub to: Vec<EmailRecipient>,
 
-    // TODO: validate size of strings in vec ?
-    /// Tags to store in the email, eg: ("marketing", "alert", "sample_offer")
-    pub tags: Vec<String>,
-
     /// List of email adresses to show on the email reply-to options, only makes
     /// sense if at least one email address different than the sender is used
     #[validate(custom = "email_vec")]
