@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use validator::Validate;
 
-use super::super::validation::email_vec;
+use super::super::validation::{email_vec, rfc_5322_email};
 
-#[derive(Debug, Validate, Deserialize, Clone)]
+#[derive(Debug, Validate, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailRecipient {
     /// recipient email address
@@ -29,14 +29,13 @@ pub struct SendEmailIn {
     /// his side and use this identifier on future requests, such as getting metrics for this uuid
     pub uuid: Option<uuid::Uuid>,
 
-    // TODO: make this work with RFC5322 emails
     /// The RFC5322 email address to be used to send the email, if None the service default address is used
-    #[validate(email)]
+    #[validate(custom = "rfc_5322_email")]
     pub sender: Option<String>,
 
-    // TODO: validate contains at least one
     /// List of recipients for the email
     #[validate]
+    #[validate(length(min = 1))]
     pub to: Vec<EmailRecipient>,
 
     /// List of email adresses to show on the email reply-to options, only makes

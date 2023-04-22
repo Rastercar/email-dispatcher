@@ -10,16 +10,12 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use crate::{config, controller::dto::ses};
 
-async fn handle_ses_event(body: String) {
-    // TODO: test all basic SES events and publish a simplified version of them to rabbitmq
-
-    let sns_notification = serde_json::from_str::<ses::SnsNotification>(&body)
-        .or_else(|e| Err(format!("parse error: {:#?}", e)))
-        .unwrap();
+async fn handle_ses_event(body: String) -> Result<String, StatusCode> {
+    let sns_notification =
+        serde_json::from_str::<ses::SnsNotification>(&body).or(Err(StatusCode::BAD_REQUEST))?;
 
     let ses_event = serde_json::from_str::<ses::SesEvent>(&sns_notification.message)
-        .or_else(|e| Err(format!("parse error: {:#?}", e)))
-        .unwrap();
+        .or(Err(StatusCode::BAD_REQUEST))?;
 
     println!("==================================");
     println!(
@@ -28,6 +24,8 @@ async fn handle_ses_event(body: String) {
     );
     println!("{:#?}", ses_event);
     println!("==================================");
+
+    Ok("".to_owned())
 }
 
 #[derive(Clone)]

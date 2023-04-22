@@ -25,6 +25,8 @@ impl Router {
                 .publish(self.server.clone())
                 .await?;
 
+            println!("{:?}", e);
+
             return Err(e.to_string());
         }
 

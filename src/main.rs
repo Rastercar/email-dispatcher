@@ -5,6 +5,7 @@ use mail::mailer::Mailer;
 use queue::server::Server;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use trace::tracer;
 
 mod config;
 mod controller {
@@ -29,7 +30,9 @@ mod queue {
 mod http {
     pub mod server;
 }
-mod trace;
+mod trace {
+    pub mod tracer;
+}
 mod utils {
     pub mod errors;
 }
@@ -38,7 +41,7 @@ mod utils {
 async fn main() {
     let cfg = AppConfig::from_env().expect("failed to load application config");
 
-    trace::init(cfg.tracer_service_name.to_owned()).expect("failed to init tracer");
+    tracer::init(cfg.tracer_service_name.to_owned()).expect("failed to init tracer");
 
     let (sender, mut reciever) = mpsc::unbounded_channel::<Delivery>();
 
@@ -57,5 +60,5 @@ async fn main() {
         tokio::spawn(async move { router.handle_delivery(delivery).await });
     }
 
-    trace::shutdown();
+    tracer::shutdown();
 }
