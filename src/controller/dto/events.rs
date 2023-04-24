@@ -1,3 +1,5 @@
+//! DTOS for all the events that are fired by this service
+
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};

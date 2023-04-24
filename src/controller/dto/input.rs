@@ -1,10 +1,9 @@
-use std::collections::HashMap;
-
-use serde::{Deserialize, Serialize};
-
-use validator::Validate;
+//! DTOS for all events and operation inputs accepted by this service
 
 use super::super::validation::{email_vec, rfc_5322_email};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use validator::Validate;
 
 #[derive(Debug, Validate, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -20,6 +19,15 @@ pub struct EmailRecipient {
     /// { email: "jhon@gmail.com", replacements: { "name": "jhon" } }
     /// ```
     pub replacements: Option<HashMap<String, String>>,
+}
+
+impl EmailRecipient {
+    pub fn has_replacements(&self) -> bool {
+        match &self.replacements {
+            Some(replacements) => !replacements.is_empty(),
+            None => false,
+        }
+    }
 }
 
 #[derive(Debug, Validate, Deserialize)]

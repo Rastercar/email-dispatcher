@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-fn def_debug() -> bool {
+fn def_app_debug() -> bool {
     false
 }
 
@@ -47,8 +47,8 @@ fn def_http_port() -> u16 {
 #[derive(Deserialize, Debug)]
 pub struct AppConfig {
     /// If the application should be run in debug mode and print additional info to stdout
-    #[serde(default = "def_debug")]
-    pub debug: bool,
+    #[serde(default = "def_app_debug")]
+    pub app_debug: bool,
 
     /// The service name to be used on the tracing spans
     #[serde(default = "def_tracer_service_name")]
@@ -82,8 +82,8 @@ pub struct AppConfig {
     /// important to validate the sender of email events, if None validation wont be applied
     pub aws_sns_tracking_subscription_arn: Option<String>,
 
-    /// Maximun amount of sendEmail operations per second for the AWS account.
-    /// defaults to 1, the value for sandboxed accounds
+    /// Maximum amount of sendEmail operations per second for the AWS account.
+    /// defaults to 1, the value for sandbox accounts
     /// see: https://docs.aws.amazon.com/ses/latest/dg/manage-sending-quotas.html
     #[serde(default = "def_aws_ses_max_emails_per_second")]
     pub aws_ses_max_emails_per_second: u32,
@@ -100,7 +100,7 @@ impl AppConfig {
     pub fn from_env() -> Result<AppConfig, envy::Error> {
         match envy::from_env::<AppConfig>() {
             Ok(config) => {
-                if config.debug {
+                if config.app_debug {
                     println!("[CFG] {:#?}", config);
                 }
 

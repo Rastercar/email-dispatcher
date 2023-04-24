@@ -51,13 +51,28 @@ impl Server {
 
     pub async fn start(&self) {
         loop {
-            match self.run().await {
-                Ok(_) => println!("[RMQ] consumer stream closed without returning an error"),
-                Err(err) => println!("[RMQ] connection error: {}", err),
+            if let Err(err) = self.run().await {
+                println!("[RMQ] connection error: {}", err)
             }
 
             thread::sleep(time::Duration::from_secs(5));
-            println!("[RMQ] reconecting");
+            println!("[RMQ] reconnecting");
+        }
+    }
+
+    pub async fn shutdown(&self) {
+        println!("[RMQ] closing channel");
+        if let Some(chan) = self.channel.read().await.as_ref() {
+            if let Err(chan_close_err) = chan.close(200, "user shutdown").await {
+                println!("[RMQ] failed to close channel: {}", chan_close_err)
+            }
+        }
+
+        println!("[RMQ] closing connection");
+        if let Some(conn) = self.connection.read().await.as_ref() {
+            if let Err(conn_close_err) = conn.close(200, "user shutdown").await {
+                println!("[RMQ] failed to close connection: {}", conn_close_err)
+            }
         }
     }
 

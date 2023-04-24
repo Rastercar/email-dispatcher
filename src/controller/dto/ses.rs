@@ -1,7 +1,8 @@
-use std::collections::HashMap;
+//! DTOS for AWS SNS and SES events
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 pub struct SnsNotification {

@@ -11,7 +11,7 @@ use crate::{
 };
 
 impl Router {
-    #[tracing::instrument]
+    #[tracing::instrument(skip(self))]
     pub async fn send_email(&self, delivery: Delivery) -> Result<(), String> {
         ack_delivery(&delivery).await?;
 
@@ -24,8 +24,6 @@ impl Router {
             EmailRequestEvent::rejected(uuid)
                 .publish(self.server.clone())
                 .await?;
-
-            println!("{:?}", e);
 
             return Err(e.to_string());
         }
@@ -44,6 +42,12 @@ impl Router {
                 body_html: send_email_in.body_html,
                 track_events: send_email_in.enable_tracking,
             })
+            .await?;
+
+        // TODO: i probably dont need to be here, also check for early returns in this method as that would
+        // make us need to fire the error event
+        EmailRequestEvent::finished(uuid)
+            .publish(self.server.clone())
             .await?;
 
         Ok(())

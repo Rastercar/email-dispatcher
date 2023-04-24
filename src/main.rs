@@ -3,6 +3,7 @@ use controller::router::Router;
 use lapin::message::Delivery;
 use mail::mailer::Mailer;
 use queue::server::Server;
+use signal_hook::{consts::SIGINT, iterator::Signals};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use trace::tracer;
@@ -43,22 +44,42 @@ async fn main() {
 
     tracer::init(cfg.tracer_service_name.to_owned()).expect("failed to init tracer");
 
-    let (sender, mut reciever) = mpsc::unbounded_channel::<Delivery>();
+    let (sender, mut receiver) = mpsc::unbounded_channel::<Delivery>();
 
     let server = Arc::new(Server::new(&cfg, sender));
+
+    let server_ref_1 = server.clone();
+    let server_ref_2 = server.clone();
 
     let mailer = Mailer::new(&cfg, server.clone()).await;
 
     let router = Arc::new(Router::new(server.clone(), mailer));
 
-    tokio::spawn(async move { server.start().await });
-
+    tokio::spawn(async move { server.clone().start().await });
     tokio::spawn(async move { http::server::serve(&cfg).await });
 
-    while let Some(delivery) = reciever.recv().await {
+    let mut signals = Signals::new(&[SIGINT]).expect("failed to setup signals hook");
+
+    tokio::spawn(async move {
+        for sig in signals.forever() {
+            println!("\n[APP] received signal: {}", sig);
+            shutdown(server_ref_1.clone()).await;
+        }
+    });
+
+    while let Some(delivery) = receiver.recv().await {
         let router = router.clone();
         tokio::spawn(async move { router.handle_delivery(delivery).await });
     }
 
-    tracer::shutdown();
+    shutdown(server_ref_2).await;
+}
+
+async fn shutdown(rmq_server: Arc<Server>) {
+    println!("[APP] shutting down");
+
+    tracer::shutdown().await;
+    rmq_server.shutdown().await;
+
+    std::process::exit(1)
 }

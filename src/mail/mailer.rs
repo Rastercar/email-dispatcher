@@ -1,8 +1,4 @@
-use crate::{
-    config,
-    controller::dto::{events::EmailRequestEvent, input},
-    queue::server::{self},
-};
+use crate::{config, controller::dto::input, queue::server};
 use aws_sdk_sesv2::{
     client::customize::Response,
     config::Region,
@@ -18,13 +14,19 @@ use governor::{
     Quota,
 };
 use handlebars::Handlebars;
-use std::{num::NonZeroU32, sync::Arc};
+use std::{num::NonZeroU32, sync::Arc, thread, time};
 use tokio::task::JoinSet;
+use tracing::Instrument;
 use uuid::Uuid;
 
 /// see: https://docs.aws.amazon.com/ses/latest/APIReference/API_SendEmail.html
 static MAX_RECIPIENTS_PER_SEND_EMAIL_OP: usize = 50;
 
+static MAX_EMAIL_RETRY_ATTEMPT: u8 = 4;
+
+static RETRY_ATTEMPTS_INTERVAL: u8 = 5;
+
+#[derive(Debug)]
 pub struct SendEmailOptions {
     pub to: Vec<input::EmailRecipient>,
 
@@ -39,7 +41,7 @@ pub struct SendEmailOptions {
     /// If the email to be sent should have tracking for (click, delivery, report, send and open events)
     /// this changes how the email is fired in the following ways:
     ///
-    /// a call with the sendEmail op is sent to SES for every email addreess in the `to` field, so we can properly
+    /// a call with the sendEmail op is sent to SES for every email address in the `to` field, so we can properly
     /// track events to the recipient level, this is slower and more expensive as this triggers SNS events.
     ///
     /// the configuration set used to fire the emails
@@ -58,12 +60,29 @@ pub struct Mailer {
     pub aws_ses_tracking_config_set: String,
 }
 
+#[tracing::instrument]
 async fn send_with_rate_limiter(
     rate_limiter: Arc<RateLimiter>,
     send_email_op: SendEmailFluentBuilder,
 ) -> Result<SendEmailOutput, SdkError<SendEmailError, Response>> {
     rate_limiter.until_ready().await;
-    send_email_op.send().await
+
+    let mut result = send_email_op.clone().send().await;
+    let mut attempt = 1;
+
+    while attempt < MAX_EMAIL_RETRY_ATTEMPT && !result.is_ok() {
+        attempt += 1;
+
+        thread::sleep(time::Duration::from_secs(RETRY_ATTEMPTS_INTERVAL.into()));
+
+        rate_limiter.until_ready().await;
+        result = send_email_op.clone().send().await;
+    }
+
+    // TODO:
+    // if result.is_err fire a error event for the recipients in this OP
+
+    result
 }
 
 impl Mailer {
@@ -89,13 +108,14 @@ impl Mailer {
         Content::builder().data(input).charset("UTF-8").build()
     }
 
-    /// Sends the emails for all the recipients in paralel, passing uuid to the email tags.
+    /// Sends the emails for all the recipients in parallel, passing uuid to the email tags.
     ///
     /// Each recipient with non empty replacements have the `body_html` {{}} tags
     /// replaced by the recipients replacements. Emails are send individually for
     /// every recipient with replacements or for every recipient if `track_events` is true.
     ///
     /// this future resolves once all the emails have been sent
+    #[tracing::instrument(skip(self))]
     pub async fn send_emails(&self, options: SendEmailOptions) -> Result<(), String> {
         let html = options.body_html.unwrap_or("".to_owned());
         let text = options.body_text.unwrap_or("".to_owned());
@@ -111,15 +131,17 @@ impl Mailer {
             None
         };
 
-        let (recipients_without_replacements, recipients_with_replacements): (_, Vec<_>) =
-            options.to.clone().into_iter().partition(|recipient| {
-                if let Some(replacements) = &recipient.replacements {
-                    return replacements.is_empty();
-                }
-                return false;
-            });
+        let (recipients_with_replacements, recipients_without_replacements): (_, Vec<_>) = options
+            .to
+            .into_iter()
+            .partition(|recipient| recipient.has_replacements());
 
         let mut send_email_tasks = JoinSet::new();
+
+        let email_id_tag = MessageTag::builder()
+            .name("raster-email-id")
+            .value(uuid_str.clone())
+            .build();
 
         if !recipients_with_replacements.is_empty() {
             let mut reg = Handlebars::new();
@@ -150,21 +172,19 @@ impl Mailer {
                     .to_addresses(recipient.email.clone())
                     .build();
 
-                send_email_tasks.spawn(send_with_rate_limiter(
-                    self.rate_limiter.clone(),
-                    self.aws_client
-                        .send_email()
-                        .from_email_address(from.clone())
-                        .destination(dest)
-                        .email_tags(
-                            MessageTag::builder()
-                                .name("raster-email-id")
-                                .value(uuid_str.clone())
-                                .build(),
-                        )
-                        .set_configuration_set_name(config_set.clone())
-                        .content(email_content.clone()),
-                ));
+                send_email_tasks.spawn(
+                    send_with_rate_limiter(
+                        self.rate_limiter.clone(),
+                        self.aws_client
+                            .send_email()
+                            .from_email_address(from.clone())
+                            .destination(dest)
+                            .email_tags(email_id_tag.clone())
+                            .set_configuration_set_name(config_set.clone())
+                            .content(email_content.clone()),
+                    )
+                    .instrument(tracing::Span::current()),
+                );
             }
         }
 
@@ -198,31 +218,23 @@ impl Mailer {
                     .set_to_addresses(Some(chunk_emails))
                     .build();
 
-                send_email_tasks.spawn(send_with_rate_limiter(
-                    self.rate_limiter.clone(),
-                    self.aws_client
-                        .send_email()
-                        .from_email_address(from.clone())
-                        .destination(dest)
-                        .email_tags(
-                            MessageTag::builder()
-                                .name("raster-email-id")
-                                .value(uuid_str.clone())
-                                .build(),
-                        )
-                        .set_configuration_set_name(config_set.clone())
-                        .content(email_content.clone()),
-                ));
+                send_email_tasks.spawn(
+                    send_with_rate_limiter(
+                        self.rate_limiter.clone(),
+                        self.aws_client
+                            .send_email()
+                            .from_email_address(from.clone())
+                            .destination(dest)
+                            .email_tags(email_id_tag.clone())
+                            .set_configuration_set_name(config_set.clone())
+                            .content(email_content.clone()),
+                    )
+                    .instrument(tracing::Span::current()),
+                );
             }
         }
 
         while let Some(_) = send_email_tasks.join_next().await {}
-
-        // TODO: i probably dont need to be here, also check for early returns in this method as that would
-        // make us need to fire the error event
-        EmailRequestEvent::finished(options.uuid)
-            .publish(self.server.clone())
-            .await?;
 
         Ok(())
     }

@@ -5,6 +5,7 @@ use lapin::{
     types::ShortString,
 };
 use std::sync::Arc;
+use tracing::error;
 
 use super::routes::default;
 
@@ -19,15 +20,20 @@ impl Router {
         Router { server, mailer }
     }
 
+    #[tracing::instrument(skip(self))]
     pub async fn handle_delivery(&self, delivery: Delivery) {
-        let handler_res = match get_delivery_type(&delivery).as_str() {
+        let delivery_type = get_delivery_type(&delivery);
+
+        let handler_res = match delivery_type.as_str() {
             "sendEmail" => self.send_email(delivery).await,
             _ => default::handle_delivery_without_corresponding_rpc(delivery).await,
         };
 
-        // TODO: trace/log error on jaeger !?
         if let Err(err) = handler_res {
-            println!("err -> {}", err);
+            error!(
+                "handler for delivery of type: {} returned error: {}",
+                delivery_type, err
+            );
         }
     }
 }
