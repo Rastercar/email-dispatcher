@@ -38,10 +38,6 @@ impl Router {
             ))
             .await?;
 
-        self.server
-            .publish_as_json(EmailRequestFinishedEvent::new(uuid))
-            .await?;
-
         self.mailer
             .send_emails(SendEmailOptions {
                 uuid,

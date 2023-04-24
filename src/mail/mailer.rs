@@ -71,6 +71,7 @@ async fn send_with_rate_limiter(
     rate_limiter: Arc<RateLimiter>,
     send_email_op: SendEmailFluentBuilder,
     request_uuid: uuid::Uuid,
+    recipients: Vec<String>,
     server: Arc<queue::server::Server>,
 ) -> Result<SendEmailOutput, SdkError<SendEmailError, Response>> {
     rate_limiter.until_ready().await;
@@ -88,7 +89,8 @@ async fn send_with_rate_limiter(
     }
 
     if let Err(ses_err) = result {
-        let sending_err_event = EmailSendingErrorEvent::new(request_uuid, ses_err.to_string());
+        let sending_err_event =
+            EmailSendingErrorEvent::new(ses_err.to_string(), request_uuid, recipients);
 
         if let Err(publishing_err) = server.publish_as_json(sending_err_event).await {
             error!("failed to publish SES error to RMQ: {}", publishing_err)
@@ -199,6 +201,7 @@ impl Mailer {
                             .set_configuration_set_name(config_set.clone())
                             .content(email_content.clone()),
                         options.uuid.clone(),
+                        vec![recipient.email.clone()],
                         self.server.clone(),
                     )
                     .instrument(tracing::Span::current()),
@@ -214,7 +217,7 @@ impl Mailer {
             };
 
             for recipient_chunk in recipients_without_replacements.chunks(chunk_size) {
-                let chunk_emails = recipient_chunk
+                let chunk_emails: Vec<String> = recipient_chunk
                     .to_vec()
                     .iter()
                     .map(|e| e.email.to_owned())
@@ -233,7 +236,7 @@ impl Mailer {
                 let email_content = EmailContent::builder().simple(msg).build();
 
                 let dest = Destination::builder()
-                    .set_to_addresses(Some(chunk_emails))
+                    .set_to_addresses(Some(chunk_emails.clone()))
                     .build();
 
                 send_email_tasks.spawn(
@@ -248,6 +251,7 @@ impl Mailer {
                             .set_reply_to_addresses(options.reply_to_addresses.clone())
                             .content(email_content.clone()),
                         options.uuid.clone(),
+                        chunk_emails.clone(),
                         self.server.clone(),
                     )
                     .instrument(tracing::Span::current()),

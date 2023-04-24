@@ -8,22 +8,42 @@ use axum::{
 };
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use crate::{config, controller::dto::ses};
+use crate::{
+    config,
+    controller::dto::{
+        events::{EmailEvent, EmailEventType},
+        ses,
+    },
+};
 
 async fn handle_ses_event(body: String) -> Result<String, StatusCode> {
     let sns_notification =
         serde_json::from_str::<ses::SnsNotification>(&body).or(Err(StatusCode::BAD_REQUEST))?;
 
-    let ses_event = serde_json::from_str::<ses::SesEvent>(&sns_notification.message)
+    let ses_evt = serde_json::from_str::<ses::SesEvent>(&sns_notification.message)
         .or(Err(StatusCode::BAD_REQUEST))?;
 
-    println!("==================================");
-    println!(
-        "-------- ses_event: {} --------",
-        ses_event.event_type.clone().unwrap_or("??".to_owned())
-    );
-    println!("{:#?}", ses_event);
-    println!("==================================");
+    let event_type = ses_evt
+        .event_type
+        .or(ses_evt.notification_type)
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    // TODO: fill all match arms
+    let event = match event_type.as_str() {
+        "bounce" => EmailEventType::BOUNCE(ses_evt.bounce.ok_or(StatusCode::BAD_REQUEST)?),
+        "complaint" => EmailEventType::COMPLAINT(ses_evt.complaint.ok_or(StatusCode::BAD_REQUEST)?),
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+
+    let email_event = EmailEvent {
+        // TODO: extract request uuid from mail object
+        request_uuid: "".to_owned(),
+        event_type: event_type.to_owned(),
+        mail: ses_evt.mail,
+        event,
+    };
+
+    // TODO: publish event here!
 
     Ok("".to_owned())
 }
