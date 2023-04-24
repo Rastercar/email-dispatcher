@@ -45,6 +45,5 @@ single instance should be more than enough.
 - document aws ses / sns, rabbitmq setup
 - document jaeger and jaeger setup
 - document DTOS
-- finish all email events and code todo`s
 - create a logo ?
 - get rid of junk spans on jaeger (trace level ?)

@@ -7,6 +7,7 @@ use lapin::{
     types::FieldTable,
     BasicProperties, Channel, Connection, ConnectionProperties, ExchangeKind,
 };
+use serde::Serialize;
 use std::{thread, time};
 use tokio::sync::{mpsc::UnboundedSender, RwLock};
 use tokio_stream::StreamExt;
@@ -30,6 +31,10 @@ pub struct Server {
     channel: RwLock<Option<Channel>>,
     connection: RwLock<Option<Connection>>,
     sender: UnboundedSender<Delivery>,
+}
+
+pub trait Routable {
+    fn routing_key(&self) -> String;
 }
 
 impl Server {
@@ -176,16 +181,17 @@ impl Server {
             .or(Err(ERR_PUBLISH_CONFIRM.to_owned()))
     }
 
-    pub async fn publish_event(
-        &self,
-        routing_key: &str,
-        payload: &[u8],
-    ) -> Result<PublisherConfirm, String> {
+    pub async fn publish_as_json<T>(&self, event: T) -> Result<PublisherConfirm, String>
+    where
+        T: Serialize + Routable,
+    {
+        let json = serde_json::to_string(&event).or(Err("failed to serialize event".to_owned()))?;
+
         self.publish(
             &self.options.email_events_exchange,
-            routing_key,
-            payload,
-            BasicProperties::default(),
+            event.routing_key().as_str(),
+            json.as_bytes(),
+            BasicProperties::default().with_content_type("application/json".into()),
         )
         .await
     }

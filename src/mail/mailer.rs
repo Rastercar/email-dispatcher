@@ -1,4 +1,8 @@
-use crate::{config, controller::dto::input, queue::server};
+use crate::{
+    config,
+    controller::dto::{events::EmailSendingErrorEvent, input},
+    queue::{self, server},
+};
 use aws_sdk_sesv2::{
     client::customize::Response,
     config::Region,
@@ -16,7 +20,7 @@ use governor::{
 use handlebars::Handlebars;
 use std::{num::NonZeroU32, sync::Arc, thread, time};
 use tokio::task::JoinSet;
-use tracing::Instrument;
+use tracing::{log::error, Instrument};
 use uuid::Uuid;
 
 /// see: https://docs.aws.amazon.com/ses/latest/APIReference/API_SendEmail.html
@@ -34,6 +38,8 @@ pub struct SendEmailOptions {
     pub subject: String,
     pub body_text: Option<String>,
     pub body_html: Option<String>,
+
+    pub reply_to_addresses: Option<Vec<String>>,
 
     /// Uuid of the email request, used to publish error/finished events when all the deliveries for the request finish
     pub uuid: Uuid,
@@ -64,6 +70,8 @@ pub struct Mailer {
 async fn send_with_rate_limiter(
     rate_limiter: Arc<RateLimiter>,
     send_email_op: SendEmailFluentBuilder,
+    request_uuid: uuid::Uuid,
+    server: Arc<queue::server::Server>,
 ) -> Result<SendEmailOutput, SdkError<SendEmailError, Response>> {
     rate_limiter.until_ready().await;
 
@@ -79,8 +87,15 @@ async fn send_with_rate_limiter(
         result = send_email_op.clone().send().await;
     }
 
-    // TODO:
-    // if result.is_err fire a error event for the recipients in this OP
+    if let Err(ses_err) = result {
+        let sending_err_event = EmailSendingErrorEvent::new(request_uuid, ses_err.to_string());
+
+        if let Err(publishing_err) = server.publish_as_json(sending_err_event).await {
+            error!("failed to publish SES error to RMQ: {}", publishing_err)
+        }
+
+        return Err(ses_err);
+    }
 
     result
 }
@@ -180,8 +195,11 @@ impl Mailer {
                             .from_email_address(from.clone())
                             .destination(dest)
                             .email_tags(email_id_tag.clone())
+                            .set_reply_to_addresses(options.reply_to_addresses.clone())
                             .set_configuration_set_name(config_set.clone())
                             .content(email_content.clone()),
+                        options.uuid.clone(),
+                        self.server.clone(),
                     )
                     .instrument(tracing::Span::current()),
                 );
@@ -227,7 +245,10 @@ impl Mailer {
                             .destination(dest)
                             .email_tags(email_id_tag.clone())
                             .set_configuration_set_name(config_set.clone())
+                            .set_reply_to_addresses(options.reply_to_addresses.clone())
                             .content(email_content.clone()),
+                        options.uuid.clone(),
+                        self.server.clone(),
                     )
                     .instrument(tracing::Span::current()),
                 );

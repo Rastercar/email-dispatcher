@@ -4,7 +4,10 @@ use validator::Validate;
 
 use crate::{
     controller::{
-        dto::{events::EmailRequestEvent, input},
+        dto::{
+            events::{EmailRequestFinishedEvent, EmailSendingReceivedEvent},
+            input,
+        },
         router::{ack_delivery, Router},
     },
     mail::mailer::SendEmailOptions,
@@ -21,15 +24,22 @@ impl Router {
         let uuid = send_email_in.uuid.unwrap_or(Uuid::new_v4());
 
         if let Err(e) = send_email_in.validate() {
-            EmailRequestEvent::rejected(uuid)
-                .publish(self.server.clone())
+            self.server
+                .publish_as_json(EmailSendingReceivedEvent::rejected(uuid, send_email_in))
                 .await?;
 
             return Err(e.to_string());
         }
 
-        EmailRequestEvent::started(uuid)
-            .publish(self.server.clone())
+        self.server
+            .publish_as_json(EmailSendingReceivedEvent::started(
+                uuid,
+                send_email_in.clone(),
+            ))
+            .await?;
+
+        self.server
+            .publish_as_json(EmailRequestFinishedEvent::new(uuid))
             .await?;
 
         self.mailer
@@ -41,13 +51,12 @@ impl Router {
                 body_text: send_email_in.body_text,
                 body_html: send_email_in.body_html,
                 track_events: send_email_in.enable_tracking,
+                reply_to_addresses: send_email_in.reply_to_addresses,
             })
             .await?;
 
-        // TODO: i probably dont need to be here, also check for early returns in this method as that would
-        // make us need to fire the error event
-        EmailRequestEvent::finished(uuid)
-            .publish(self.server.clone())
+        self.server
+            .publish_as_json(EmailRequestFinishedEvent::new(uuid))
             .await?;
 
         Ok(())

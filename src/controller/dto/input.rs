@@ -30,7 +30,7 @@ impl EmailRecipient {
     }
 }
 
-#[derive(Debug, Validate, Deserialize)]
+#[derive(Debug, Validate, Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SendEmailIn {
     /// A unique identifier for the email sending request, this is so the client can store this on
@@ -46,10 +46,10 @@ pub struct SendEmailIn {
     #[validate(length(min = 1))]
     pub to: Vec<EmailRecipient>,
 
-    /// List of email adresses to show on the email reply-to options, only makes
+    /// List of email addresses to show on the email reply-to options, only makes
     /// sense if at least one email address different than the sender is used
     #[validate(custom = "email_vec")]
-    pub reply_to_adresses: Option<Vec<String>>,
+    pub reply_to_addresses: Option<Vec<String>>,
 
     pub subject: String,
 

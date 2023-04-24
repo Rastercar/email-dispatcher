@@ -1,72 +1,106 @@
 //! DTOS for all the events that are fired by this service
 
-use std::sync::Arc;
-
+use super::input::SendEmailIn;
+use crate::queue::server::Routable;
 use chrono::{DateTime, Utc};
-use lapin::publisher_confirm::PublisherConfirm;
 use serde::{Deserialize, Serialize};
-
-use crate::queue::server::Server;
+use uuid::Uuid;
 
 #[derive(strum_macros::Display, Deserialize, Serialize)]
 pub enum EmailRequestStatus {
-    ERROR,
+    #[strum(serialize = "started")]
     STARTED,
-    FINISHED,
+
+    #[strum(serialize = "rejected")]
     REJECTED,
 }
 
+/// informs that a request has been received by this service and its status
 #[derive(Deserialize, Serialize)]
-pub struct EmailRequestEvent {
-    pub status: EmailRequestStatus,
-
+pub struct EmailSendingReceivedEvent {
     pub timestamp: DateTime<Utc>,
 
-    /// uuid of the email request this sending status update refers to
+    pub status: EmailRequestStatus,
+
+    pub request_uuid: Uuid,
+
+    pub request: SendEmailIn,
+}
+
+impl EmailSendingReceivedEvent {
+    pub fn started(request_uuid: uuid::Uuid, request: SendEmailIn) -> EmailSendingReceivedEvent {
+        EmailSendingReceivedEvent {
+            request,
+            request_uuid,
+            timestamp: Utc::now(),
+            status: EmailRequestStatus::STARTED,
+        }
+    }
+
+    pub fn rejected(request_uuid: uuid::Uuid, request: SendEmailIn) -> EmailSendingReceivedEvent {
+        EmailSendingReceivedEvent {
+            request,
+            request_uuid,
+            timestamp: Utc::now(),
+            status: EmailRequestStatus::REJECTED,
+        }
+    }
+}
+
+impl Routable for EmailSendingReceivedEvent {
+    fn routing_key(&self) -> String {
+        match self.status {
+            EmailRequestStatus::STARTED => "sending.started".to_string(),
+            EmailRequestStatus::REJECTED => "sending.rejected".to_string(),
+        }
+    }
+}
+
+/// informs that all the emails for a request have been fired to the AWS servers, this does not mean
+/// the emails have all been successfully fired, much less that they reached the recipients inboxes
+#[derive(Deserialize, Serialize)]
+pub struct EmailRequestFinishedEvent {
+    pub timestamp: DateTime<Utc>,
+
     pub request_uuid: uuid::Uuid,
 }
 
-impl EmailRequestEvent {
-    pub fn started(request_uuid: uuid::Uuid) -> EmailRequestEvent {
-        EmailRequestEvent {
-            status: EmailRequestStatus::STARTED,
+impl Routable for EmailRequestFinishedEvent {
+    fn routing_key(&self) -> String {
+        "sending.finished".to_string()
+    }
+}
+
+impl EmailRequestFinishedEvent {
+    pub fn new(request_uuid: uuid::Uuid) -> EmailRequestFinishedEvent {
+        EmailRequestFinishedEvent {
             timestamp: Utc::now(),
             request_uuid,
         }
     }
+}
 
-    pub fn finished(request_uuid: uuid::Uuid) -> EmailRequestEvent {
-        EmailRequestEvent {
-            status: EmailRequestStatus::FINISHED,
+#[derive(Deserialize, Serialize)]
+pub struct EmailSendingErrorEvent {
+    pub timestamp: DateTime<Utc>,
+
+    pub request_uuid: Uuid,
+
+    pub error: String,
+}
+
+impl EmailSendingErrorEvent {
+    pub fn new(request_uuid: uuid::Uuid, error: String) -> EmailSendingErrorEvent {
+        EmailSendingErrorEvent {
+            error,
             timestamp: Utc::now(),
             request_uuid,
         }
     }
+}
 
-    pub fn rejected(request_uuid: uuid::Uuid) -> EmailRequestEvent {
-        EmailRequestEvent {
-            status: EmailRequestStatus::REJECTED,
-            timestamp: Utc::now(),
-            request_uuid,
-        }
-    }
-
-    pub fn to_json_string(&self) -> Result<String, String> {
-        serde_json::to_string(&self).or(Err("failed to deserialize EmailRequestEvent".to_owned()))
-    }
-
-    pub fn routing_key(&self) -> String {
-        return format!("sending.{}", self.status.to_string().to_lowercase());
-    }
-
-    /// Publishes the self event to the mailer events exchange as JSON
-    pub async fn publish(&self, rmq_server: Arc<Server>) -> Result<PublisherConfirm, String> {
-        rmq_server
-            .publish_event(
-                self.routing_key().as_str(),
-                self.to_json_string()?.as_bytes(),
-            )
-            .await
-            .or(Err("failed to publish email event".to_owned()))
+impl Routable for EmailSendingErrorEvent {
+    fn routing_key(&self) -> String {
+        "sending.error".to_string()
     }
 }

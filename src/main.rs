@@ -47,9 +47,7 @@ async fn main() {
     let (sender, mut receiver) = mpsc::unbounded_channel::<Delivery>();
 
     let server = Arc::new(Server::new(&cfg, sender));
-
-    let server_ref_1 = server.clone();
-    let server_ref_2 = server.clone();
+    let server_ref = server.clone();
 
     let mailer = Mailer::new(&cfg, server.clone()).await;
 
@@ -62,8 +60,12 @@ async fn main() {
 
     tokio::spawn(async move {
         for sig in signals.forever() {
-            println!("\n[APP] received signal: {}", sig);
-            shutdown(server_ref_1.clone()).await;
+            println!("\n[APP] received signal: {}, shutting down", sig);
+
+            tracer::shutdown().await;
+            server_ref.shutdown().await;
+
+            std::process::exit(sig)
         }
     });
 
@@ -71,15 +73,4 @@ async fn main() {
         let router = router.clone();
         tokio::spawn(async move { router.handle_delivery(delivery).await });
     }
-
-    shutdown(server_ref_2).await;
-}
-
-async fn shutdown(rmq_server: Arc<Server>) {
-    println!("[APP] shutting down");
-
-    tracer::shutdown().await;
-    rmq_server.shutdown().await;
-
-    std::process::exit(1)
 }
