@@ -105,6 +105,7 @@ async fn handle_ses_event(
             Ok("event handled correctly".to_owned())
         }
         Err(error) => {
+            println!("{error}");
             error!(error);
             Err(StatusCode::BAD_REQUEST)
         }

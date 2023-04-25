@@ -83,7 +83,7 @@ pub struct MailObj {
 
     pub message_id: String,
 
-    pub source_arn: String,
+    pub source_arn: Option<String>,
 
     pub sending_account_id: String,
 
@@ -207,7 +207,7 @@ pub struct ClickObj {
 
     pub link: String,
 
-    pub link_tags: HashMap<String, Vec<String>>,
+    pub link_tags: Option<HashMap<String, Vec<String>>>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
