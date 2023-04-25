@@ -1,4 +1,4 @@
-# Mailer
+# Email dispatcher
 
 A simple email sending micro service, made for asynchronous and event based systems with Rabbitmq and AWS SES.
 
