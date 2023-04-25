@@ -95,7 +95,7 @@ async fn send_with_rate_limiter(
         let sending_err_event =
             EmailSendingErrorEvent::new(ses_err.to_string(), request_uuid, recipients);
 
-        if let Err(publishing_err) = server.publish_as_json(sending_err_event).await {
+        if let Err(publishing_err) = server.publish_email_event_json(sending_err_event).await {
             error!("failed to publish SES error to RMQ: {}", publishing_err)
         }
 

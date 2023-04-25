@@ -181,7 +181,7 @@ impl Server {
             .or(Err(ERR_PUBLISH_CONFIRM.to_owned()))
     }
 
-    pub async fn publish_as_json<T>(&self, event: T) -> Result<PublisherConfirm, String>
+    pub async fn publish_email_event_json<T>(&self, event: T) -> Result<PublisherConfirm, String>
     where
         T: Serialize + Routable,
     {

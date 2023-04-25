@@ -25,14 +25,14 @@ impl Router {
 
         if let Err(e) = send_email_in.validate() {
             self.server
-                .publish_as_json(EmailSendingReceivedEvent::rejected(uuid, send_email_in))
+                .publish_email_event_json(EmailSendingReceivedEvent::rejected(uuid, send_email_in))
                 .await?;
 
             return Err(e.to_string());
         }
 
         self.server
-            .publish_as_json(EmailSendingReceivedEvent::started(
+            .publish_email_event_json(EmailSendingReceivedEvent::started(
                 uuid,
                 send_email_in.clone(),
             ))
@@ -52,7 +52,7 @@ impl Router {
             .await?;
 
         self.server
-            .publish_as_json(EmailRequestFinishedEvent::new(uuid))
+            .publish_email_event_json(EmailRequestFinishedEvent::new(uuid))
             .await?;
 
         Ok(())

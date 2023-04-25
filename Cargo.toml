@@ -25,6 +25,7 @@ tracing-opentelemetry = "0.18.0"
 aws-config = "0.55.1"
 aws-sdk-sesv2 = "0.26.0"
 validator = { version = "0.16", features = ["derive"] }
+schemars = { version = "0.8", features = ["chrono", "uuid1"] }
 uuid =  { version ="1.3.1", features = ["v4", "serde"] } 
 strum_macros = "0.24.3"
 handlebars = "4.3.6"

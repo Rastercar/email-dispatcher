@@ -1,10 +1,11 @@
 //! DTOS for AWS SNS and SES events
 
 use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct SnsNotification {
     #[serde(rename = "Type")]
     pub notification_type: String,
@@ -44,7 +45,7 @@ pub struct SnsNotification {
 /// spec: https://docs.aws.amazon.com/ses/latest/dg/event-publishing-retrieving-sns-contents.html#event-publishing-retrieving-sns-contents-top-level-json-object
 ///
 /// examples: https://docs.aws.amazon.com/ses/latest/dg/event-publishing-retrieving-sns-examples.html#event-publishing-retrieving-sns-delivery
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SesEvent {
     /// If you did not set up event publishing this field will be `None` and the value will be in `notification_type`
@@ -76,7 +77,7 @@ pub struct SesEvent {
     pub subscription: Option<SubscriptionObj>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct MailObj {
     pub timestamp: DateTime<Utc>,
@@ -98,17 +99,17 @@ pub struct MailObj {
     pub tags: HashMap<String, Vec<String>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct Header {
     pub name: String,
 
     pub value: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct SendObj {}
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct BounceObj {
     pub timestamp: DateTime<Utc>,
 
@@ -128,7 +129,7 @@ pub struct BounceObj {
     pub reporting_mta: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BouncedRecipients {
     pub email_address: String,
@@ -138,7 +139,7 @@ pub struct BouncedRecipients {
     pub diagnostic_code: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ComplaintObj {
     pub complained_recipients: Vec<ComplainedRecipient>,
@@ -156,13 +157,13 @@ pub struct ComplaintObj {
     pub arrival_date: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ComplainedRecipient {
     pub email_address: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct DeliveryObj {
     pub timestamp: DateTime<Utc>,
 
@@ -181,12 +182,12 @@ pub struct DeliveryObj {
     pub reporting_mta: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct RejectObj {
     pub reason: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenObj {
     pub timestamp: DateTime<Utc>,
@@ -196,7 +197,7 @@ pub struct OpenObj {
     pub user_agent: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ClickObj {
     pub timestamp: DateTime<Utc>,
@@ -210,7 +211,7 @@ pub struct ClickObj {
     pub link_tags: Option<HashMap<String, Vec<String>>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct FailureObj {
     pub template_name: String,
@@ -218,7 +219,7 @@ pub struct FailureObj {
     pub error_message: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DeliveryDelayObj {
     pub delay_type: String,
@@ -226,7 +227,7 @@ pub struct DeliveryDelayObj {
     pub delayed_recipients: Vec<DelayedRecipient>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DelayedRecipient {
     pub email_address: String,
@@ -236,7 +237,7 @@ pub struct DelayedRecipient {
     pub diagnostic_code: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscriptionObj {
     pub contact_list: String,
@@ -250,7 +251,7 @@ pub struct SubscriptionObj {
     pub old_topic_preferences: TopicPreference,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TopicPreference {
     pub unsubscribe_all: bool,
@@ -258,7 +259,7 @@ pub struct TopicPreference {
     pub topic_subscription_status: Vec<TopicSubscriptionStatus>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TopicSubscriptionStatus {
     pub topic_name: String,

@@ -99,7 +99,11 @@ async fn handle_ses_event(
 ) -> Result<String, StatusCode> {
     match get_email_event_from_json_str(&body) {
         Ok(email_event) => {
-            if let Err(publish_error) = state.queue_server.publish_as_json(email_event).await {
+            if let Err(publish_error) = state
+                .queue_server
+                .publish_email_event_json(email_event)
+                .await
+            {
                 error!("ses event publishing failed: {}", publish_error)
             }
 

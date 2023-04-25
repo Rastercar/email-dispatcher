@@ -3,6 +3,7 @@ use controller::router::Router;
 use lapin::message::Delivery;
 use mail::mailer::Mailer;
 use queue::server::Server;
+use schemars::schema_for;
 use signal_hook::{
     consts::{SIGINT, SIGTERM},
     iterator::Signals,
@@ -10,6 +11,10 @@ use signal_hook::{
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use trace::tracer;
+
+use crate::controller::dto::events::{
+    EmailEvent, EmailRequestFinishedEvent, EmailSendingErrorEvent, EmailSendingReceivedEvent,
+};
 
 mod config;
 mod controller {
@@ -41,8 +46,26 @@ mod utils {
     pub mod errors;
 }
 
+fn gen_event_schemas() {
+    let schema = schema_for!(EmailSendingReceivedEvent);
+    println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+
+    let schema = schema_for!(EmailRequestFinishedEvent);
+    println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+
+    let schema = schema_for!(EmailSendingErrorEvent);
+    println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+
+    let schema = schema_for!(EmailEvent);
+    println!("{}", serde_json::to_string_pretty(&schema).unwrap());
+}
+
 #[tokio::main]
 async fn main() {
+    println!("--------------------------------------------------");
+    gen_event_schemas();
+    println!("--------------------------------------------------");
+
     let cfg = AppConfig::from_env().expect("failed to load application config");
 
     tracer::init(cfg.tracer_service_name.to_owned()).expect("failed to init tracer");

@@ -22,7 +22,7 @@ single instance should be more than enough.
 
 ### [development setup](./docs/dev_setup.md)
 
-### TODO (to release v1.0)
-- document jaeger and jaeger setup
+### [API DOCS](./docs/dev_setup.md)
+
+### TODO
 - document DTOS
-- get rid of junk spans on jaeger (trace level ?)

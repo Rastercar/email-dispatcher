@@ -3,17 +3,18 @@
 use super::{input::SendEmailIn, ses};
 use crate::queue::server::Routable;
 use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(strum_macros::Display, Deserialize, Serialize)]
+#[derive(strum_macros::Display, Deserialize, Serialize, JsonSchema)]
 pub enum EmailRequestStatus {
     STARTED,
     REJECTED,
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, JsonSchema)]
 pub enum Email {
     open(ses::OpenObj),
     send(ses::SendObj),
@@ -28,7 +29,7 @@ pub enum Email {
 }
 
 /// informs that a request has been received by this service and its status
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, JsonSchema)]
 pub struct EmailSendingReceivedEvent {
     pub timestamp: DateTime<Utc>,
 
@@ -70,7 +71,7 @@ impl Routable for EmailSendingReceivedEvent {
 
 /// informs that all the emails for a request have been fired to the AWS servers, this does not mean
 /// the emails have all been successfully fired, much less that they reached the recipients inboxes
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, JsonSchema)]
 pub struct EmailRequestFinishedEvent {
     pub timestamp: DateTime<Utc>,
 
@@ -92,7 +93,7 @@ impl EmailRequestFinishedEvent {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, JsonSchema)]
 pub struct EmailSendingErrorEvent {
     pub timestamp: DateTime<Utc>,
 
@@ -124,7 +125,7 @@ impl Routable for EmailSendingErrorEvent {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, JsonSchema)]
 pub struct EmailEvent {
     /// uuid of the mail request that generated this event, extracted from the `mail` field
     pub request_uuid: String,

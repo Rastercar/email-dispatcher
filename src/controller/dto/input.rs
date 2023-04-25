@@ -1,11 +1,12 @@
 //! DTOS for all events and operation inputs accepted by this service
 
 use super::super::validation::{email_vec, rfc_5322_email};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use validator::Validate;
 
-#[derive(Debug, Validate, Deserialize, Serialize, Clone)]
+#[derive(Debug, Validate, Deserialize, Serialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct EmailRecipient {
     /// recipient email address
@@ -30,7 +31,7 @@ impl EmailRecipient {
     }
 }
 
-#[derive(Debug, Validate, Deserialize, Serialize, Clone)]
+#[derive(Debug, Validate, Deserialize, Serialize, Clone, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SendEmailIn {
     /// A unique identifier for the email sending request, this is so the client can store this on
