@@ -40,7 +40,9 @@ Now we need to create a configuration set to track email events using SNS and SE
 - create a SES configuration set
 - create a SNS event topic with the standard type
 - on your SES configuration set, add a event destination to the created SNS topic
-- finally, create a HTTPS subscription pointing to the URL of where you pretend to host this service
+- create a HTTPS subscription pointing to the URL of where you pretend to host this service
+- finally run this service with the env var `AWS_SES_TRACKING_CONFIG_SET` set to the name of the cfg set you created
+
 
 ## Routing SNS events to your local machine
 
@@ -61,7 +63,7 @@ after sending a confirmation request, the link will be printed to stdout
 [WEB] SNS subscription confirmation link: https://sns.us-east-1.amazonaws.com/?Action=ConfirmSubscription&TopicArn=arn:aws:sns:...&Token=...
 ```
 
-Just click the link to activate the subscription. Now and every email with `"enableTracking": true` should publish its events to SNS, which
+Just click the link to activate the subscription. Now every email with `"enableTracking": true` should publish its events to SNS, which
 will publish the events to the HTTPS endpoint to your PC.
 
 ## Available Environment variables
