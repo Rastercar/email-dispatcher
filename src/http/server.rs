@@ -15,62 +15,100 @@ use axum::{
     routing::post,
     Router,
 };
+use convert_case::{Case, Casing};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     sync::Arc,
 };
 use tracing::error;
 
-async fn handle_ses_event(
-    State(state): State<AppState>,
-    body: String,
-) -> Result<String, StatusCode> {
-    let bad_request = StatusCode::BAD_REQUEST;
+fn get_email_event_from_json_str(body: &String) -> Result<EmailEvent, String> {
+    let sns_notification = serde_json::from_str::<SnsNotification>(&body).or_else(|e| {
+        Err(format!(
+            "failed to parse request body to SnsNotification: {}",
+            e.to_string()
+        ))
+    })?;
 
-    let sns_notification = serde_json::from_str::<SnsNotification>(&body).or(Err(bad_request))?;
-    let ses_evt =
-        serde_json::from_str::<SesEvent>(&sns_notification.message).or(Err(bad_request))?;
+    if let Some(sub_url) = sns_notification.subscribe_url {
+        let is_subscription_confirmation = sns_notification
+            .notification_type
+            .eq("SubscriptionConfirmation");
+
+        if is_subscription_confirmation {
+            println!("[WEB] SNS subscription confirmation link: {}", sub_url);
+        }
+    }
+
+    let ses_evt = serde_json::from_str::<SesEvent>(&sns_notification.message).or_else(|e| {
+        Err(format!(
+            "failed to parse request body to SesEvent: {}",
+            e.to_string()
+        ))
+    })?;
 
     let request_uuid = ses_evt
         .mail
         .tags
         .get(MAIL_REQUEST_UUID_TAG_NAME)
-        .ok_or(bad_request)?
+        .ok_or(format!(
+            "required tag: {} not present on mail tags",
+            MAIL_REQUEST_UUID_TAG_NAME
+        ))?
         .first()
-        .ok_or(bad_request)?
+        .ok_or(format!(
+            "required tag: {} is present but is empty",
+            MAIL_REQUEST_UUID_TAG_NAME
+        ))?
         .to_owned();
 
     let event_type = ses_evt
         .event_type
         .or(ses_evt.notification_type)
-        .ok_or(bad_request)?;
+        .ok_or("failed to get event type from ses event")?
+        .to_case(Case::Snake);
+
+    let err_msg = format!("object for event of type: {} not present", event_type);
 
     let event = match event_type.as_str() {
-        "send" => Email::SEND(ses_evt.send.ok_or(bad_request)?),
-        "open" => Email::OPEN(ses_evt.open.ok_or(bad_request)?),
-        "click" => Email::CLICK(ses_evt.click.ok_or(bad_request)?),
-        "bounce" => Email::BOUNCE(ses_evt.bounce.ok_or(bad_request)?),
-        "reject" => Email::REJECT(ses_evt.reject.ok_or(bad_request)?),
-        "failure" => Email::FAILURE(ses_evt.failure.ok_or(bad_request)?),
-        "delivery" => Email::DELIVERY(ses_evt.delivery.ok_or(bad_request)?),
-        "complaint" => Email::COMPLAINT(ses_evt.complaint.ok_or(bad_request)?),
-        "subscription" => Email::SUBSCRIPTION(ses_evt.subscription.ok_or(bad_request)?),
-        "deliveryDelay" => Email::DELIVERY_DELAY(ses_evt.delivery_delay.ok_or(bad_request)?),
-        _ => return Err(bad_request),
+        "send" => Email::send(ses_evt.send.ok_or(err_msg)?),
+        "open" => Email::open(ses_evt.open.ok_or(err_msg)?),
+        "click" => Email::click(ses_evt.click.ok_or(err_msg)?),
+        "bounce" => Email::bounce(ses_evt.bounce.ok_or(err_msg)?),
+        "reject" => Email::reject(ses_evt.reject.ok_or(err_msg)?),
+        "failure" => Email::failure(ses_evt.failure.ok_or(err_msg)?),
+        "delivery" => Email::delivery(ses_evt.delivery.ok_or(err_msg)?),
+        "complaint" => Email::complaint(ses_evt.complaint.ok_or(err_msg)?),
+        "subscription" => Email::subscription(ses_evt.subscription.ok_or(err_msg)?),
+        "delivery_delay" => Email::delivery_delay(ses_evt.delivery_delay.ok_or(err_msg)?),
+        _ => return Err(format!("unknown event type: {}", event_type)),
     };
 
-    let email_event = EmailEvent {
+    Ok(EmailEvent {
         event,
+        event_type,
         request_uuid,
         mail: ses_evt.mail,
-        event_type: event_type.to_owned(),
-    };
+    })
+}
 
-    if let Err(publish_error) = state.queue_server.publish_as_json(email_event).await {
-        error!("ses event publishing failed: {}", publish_error)
+async fn handle_ses_event(
+    State(state): State<AppState>,
+    body: String,
+) -> Result<String, StatusCode> {
+    match get_email_event_from_json_str(&body) {
+        Ok(email_event) => {
+            if let Err(publish_error) = state.queue_server.publish_as_json(email_event).await {
+                error!("ses event publishing failed: {}", publish_error)
+            }
+
+            Ok("event handled correctly".to_owned())
+        }
+        Err(error) => {
+            error!(error);
+            Err(StatusCode::BAD_REQUEST)
+        }
     }
-
-    Ok("event handled correctly".to_owned())
 }
 
 #[derive(Clone)]

@@ -3,7 +3,10 @@ use controller::router::Router;
 use lapin::message::Delivery;
 use mail::mailer::Mailer;
 use queue::server::Server;
-use signal_hook::{consts::SIGINT, iterator::Signals};
+use signal_hook::{
+    consts::{SIGINT, SIGTERM},
+    iterator::Signals,
+};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use trace::tracer;
@@ -58,7 +61,7 @@ async fn main() {
     tokio::spawn(async move { server.clone().start().await });
     tokio::spawn(async move { http::server::serve(&cfg, http_server_ref).await });
 
-    let mut signals = Signals::new(&[SIGINT]).expect("failed to setup signals hook");
+    let mut signals = Signals::new(&[SIGINT, SIGTERM]).expect("failed to setup signals hook");
 
     tokio::spawn(async move {
         for sig in signals.forever() {

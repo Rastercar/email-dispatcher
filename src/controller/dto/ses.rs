@@ -16,7 +16,7 @@ pub struct SnsNotification {
     pub topic_arn: String,
 
     #[serde(rename = "Subject")]
-    pub subject: String,
+    pub subject: Option<String>,
 
     /// JSON string of the ses event
     #[serde(rename = "Message")]
@@ -34,8 +34,11 @@ pub struct SnsNotification {
     #[serde(rename = "SigningCertURL")]
     pub signing_cert_url: String,
 
+    #[serde(rename = "SubscribeURL")]
+    pub subscribe_url: Option<String>,
+
     #[serde(rename = "UnsubscribeURL")]
-    pub unsubscribe_url: String,
+    pub unsubscribe_url: Option<String>,
 }
 
 /// spec: https://docs.aws.amazon.com/ses/latest/dg/event-publishing-retrieving-sns-contents.html#event-publishing-retrieving-sns-contents-top-level-json-object

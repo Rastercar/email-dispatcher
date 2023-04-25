@@ -15,16 +15,16 @@ pub enum EmailRequestStatus {
 #[allow(non_camel_case_types)]
 #[derive(Deserialize, Serialize)]
 pub enum Email {
-    OPEN(ses::OpenObj),
-    SEND(ses::SendObj),
-    CLICK(ses::ClickObj),
-    BOUNCE(ses::BounceObj),
-    REJECT(ses::RejectObj),
-    FAILURE(ses::FailureObj),
-    DELIVERY(ses::DeliveryObj),
-    COMPLAINT(ses::ComplaintObj),
-    SUBSCRIPTION(ses::SubscriptionObj),
-    DELIVERY_DELAY(ses::DeliveryDelayObj),
+    open(ses::OpenObj),
+    send(ses::SendObj),
+    click(ses::ClickObj),
+    bounce(ses::BounceObj),
+    reject(ses::RejectObj),
+    failure(ses::FailureObj),
+    delivery(ses::DeliveryObj),
+    complaint(ses::ComplaintObj),
+    subscription(ses::SubscriptionObj),
+    delivery_delay(ses::DeliveryDelayObj),
 }
 
 /// informs that a request has been received by this service and its status
