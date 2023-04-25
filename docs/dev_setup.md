@@ -72,16 +72,13 @@ will publish the events to the HTTPS endpoint to your PC.
 |-----------------------------------|--------------------------------------------------------------------|-----------------------------------|
 | APP_DEBUG                         | debug mode, if true will log to debug info to stdout               | false                             |
 | APP_DEFAULT_EMAIL_SENDER          | default email address to be used as the sender                     | no-reply@your-company.com         |
-|                                   |                                                                    |                                   |
 | RMQ_URI                           | rabbitmq url                                                       | amqp://guest:guest@localhost:5672 |
 | RMQ_QUEUE                         | name of the rabbitmq queue to listen for messages                  | mailer_queue                      |
 | RMQ_CONSUMER_TAG                  | name of the consumer tag for the queue consumer                    | mailer_queue_consumer             |
 | RMQ_EMAIL_EVENTS_EXCHANGE         | name for the exchange to publish email events on                   | mailer_events                     |
-|                                   |                                                                    |                                   |
 | AWS_REGION                        |                                                                    | us-east-1                         |
 | AWS_SES_TRACKING_CONFIG_SET       | name of the SES configuration set to use for email tracking        | track-all-events                  |
 | AWS_SES_MAX_EMAILS_PER_SECOND     | limit for ops/s for the SES send email operation for your account  | 1                                 |
 | AWS_SNS_TRACKING_SUBSCRIPTION_ARN | AWS ARN for the SNS subscription for the email tracking config set | arn:123...                        |
-|                                   |                                                                    |                                   |
 | TRACER_SERVICE_NAME               | name of the service to jaeger                                      | mailer                            |
 | HTTP_PORT                         | HTTP port to listen on for SNS events                              | 3005                              |
