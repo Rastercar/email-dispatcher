@@ -30,6 +30,9 @@ static MAX_EMAIL_RETRY_ATTEMPT: u8 = 4;
 
 static RETRY_ATTEMPTS_INTERVAL: u8 = 5;
 
+/// name of the tag containing the request uuid that will be published to the email
+pub static MAIL_REQUEST_UUID_TAG_NAME: &str = "request_uuid";
+
 #[derive(Debug)]
 pub struct SendEmailOptions {
     pub to: Vec<input::EmailRecipient>,
@@ -156,7 +159,7 @@ impl Mailer {
         let mut send_email_tasks = JoinSet::new();
 
         let email_id_tag = MessageTag::builder()
-            .name("raster-email-id")
+            .name(MAIL_REQUEST_UUID_TAG_NAME)
             .value(uuid_str.clone())
             .build();
 

@@ -62,6 +62,8 @@ pub struct SesEvent {
 
     pub open: Option<OpenObj>,
 
+    pub send: Option<SendObj>,
+
     pub click: Option<ClickObj>,
 
     pub failure: Option<FailureObj>,
@@ -99,6 +101,9 @@ pub struct Header {
 
     pub value: String,
 }
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct SendObj {}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct BounceObj {

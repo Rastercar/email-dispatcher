@@ -1,3 +1,12 @@
+use crate::{
+    config,
+    controller::dto::{
+        events::{Email, EmailEvent},
+        ses::{SesEvent, SnsNotification},
+    },
+    mail::mailer::MAIL_REQUEST_UUID_TAG_NAME,
+    queue::server::Server,
+};
 use axum::{
     extract::State,
     http::{Request, StatusCode},
@@ -6,50 +15,67 @@ use axum::{
     routing::post,
     Router,
 };
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-
-use crate::{
-    config,
-    controller::dto::{
-        events::{EmailEvent, EmailEventType},
-        ses,
-    },
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
 };
+use tracing::error;
 
-async fn handle_ses_event(body: String) -> Result<String, StatusCode> {
-    let sns_notification =
-        serde_json::from_str::<ses::SnsNotification>(&body).or(Err(StatusCode::BAD_REQUEST))?;
+async fn handle_ses_event(
+    State(state): State<AppState>,
+    body: String,
+) -> Result<String, StatusCode> {
+    let bad_request = StatusCode::BAD_REQUEST;
 
-    let ses_evt = serde_json::from_str::<ses::SesEvent>(&sns_notification.message)
-        .or(Err(StatusCode::BAD_REQUEST))?;
+    let sns_notification = serde_json::from_str::<SnsNotification>(&body).or(Err(bad_request))?;
+    let ses_evt =
+        serde_json::from_str::<SesEvent>(&sns_notification.message).or(Err(bad_request))?;
+
+    let request_uuid = ses_evt
+        .mail
+        .tags
+        .get(MAIL_REQUEST_UUID_TAG_NAME)
+        .ok_or(bad_request)?
+        .first()
+        .ok_or(bad_request)?
+        .to_owned();
 
     let event_type = ses_evt
         .event_type
         .or(ses_evt.notification_type)
-        .ok_or(StatusCode::BAD_REQUEST)?;
+        .ok_or(bad_request)?;
 
-    // TODO: fill all match arms
     let event = match event_type.as_str() {
-        "bounce" => EmailEventType::BOUNCE(ses_evt.bounce.ok_or(StatusCode::BAD_REQUEST)?),
-        "complaint" => EmailEventType::COMPLAINT(ses_evt.complaint.ok_or(StatusCode::BAD_REQUEST)?),
-        _ => return Err(StatusCode::BAD_REQUEST),
+        "send" => Email::SEND(ses_evt.send.ok_or(bad_request)?),
+        "open" => Email::OPEN(ses_evt.open.ok_or(bad_request)?),
+        "click" => Email::CLICK(ses_evt.click.ok_or(bad_request)?),
+        "bounce" => Email::BOUNCE(ses_evt.bounce.ok_or(bad_request)?),
+        "reject" => Email::REJECT(ses_evt.reject.ok_or(bad_request)?),
+        "failure" => Email::FAILURE(ses_evt.failure.ok_or(bad_request)?),
+        "delivery" => Email::DELIVERY(ses_evt.delivery.ok_or(bad_request)?),
+        "complaint" => Email::COMPLAINT(ses_evt.complaint.ok_or(bad_request)?),
+        "subscription" => Email::SUBSCRIPTION(ses_evt.subscription.ok_or(bad_request)?),
+        "deliveryDelay" => Email::DELIVERY_DELAY(ses_evt.delivery_delay.ok_or(bad_request)?),
+        _ => return Err(bad_request),
     };
 
     let email_event = EmailEvent {
-        // TODO: extract request uuid from mail object
-        request_uuid: "".to_owned(),
-        event_type: event_type.to_owned(),
-        mail: ses_evt.mail,
         event,
+        request_uuid,
+        mail: ses_evt.mail,
+        event_type: event_type.to_owned(),
     };
 
-    // TODO: publish event here!
+    if let Err(publish_error) = state.queue_server.publish_as_json(email_event).await {
+        error!("ses event publishing failed: {}", publish_error)
+    }
 
-    Ok("".to_owned())
+    Ok("event handled correctly".to_owned())
 }
 
 #[derive(Clone)]
 struct AppState {
+    queue_server: Arc<Server>,
     aws_email_sns_subscription_arn: Option<String>,
 }
 
@@ -79,8 +105,9 @@ async fn check_sns_arn<T>(
     Err(StatusCode::BAD_REQUEST)
 }
 
-pub async fn serve(cfg: &config::AppConfig) {
+pub async fn serve(cfg: &config::AppConfig, server: Arc<Server>) {
     let state = AppState {
+        queue_server: server,
         aws_email_sns_subscription_arn: cfg.aws_sns_tracking_subscription_arn.clone(),
     };
 

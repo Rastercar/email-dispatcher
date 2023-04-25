@@ -47,14 +47,16 @@ async fn main() {
     let (sender, mut receiver) = mpsc::unbounded_channel::<Delivery>();
 
     let server = Arc::new(Server::new(&cfg, sender));
-    let server_ref = server.clone();
+
+    let http_server_ref = server.clone();
+    let shutdown_server_ref = server.clone();
 
     let mailer = Mailer::new(&cfg, server.clone()).await;
 
     let router = Arc::new(Router::new(server.clone(), mailer));
 
     tokio::spawn(async move { server.clone().start().await });
-    tokio::spawn(async move { http::server::serve(&cfg).await });
+    tokio::spawn(async move { http::server::serve(&cfg, http_server_ref).await });
 
     let mut signals = Signals::new(&[SIGINT]).expect("failed to setup signals hook");
 
@@ -63,7 +65,7 @@ async fn main() {
             println!("\n[APP] received signal: {}, shutting down", sig);
 
             tracer::shutdown().await;
-            server_ref.shutdown().await;
+            shutdown_server_ref.shutdown().await;
 
             std::process::exit(sig)
         }

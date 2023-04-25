@@ -14,8 +14,9 @@ pub enum EmailRequestStatus {
 
 #[allow(non_camel_case_types)]
 #[derive(Deserialize, Serialize)]
-pub enum EmailEventType {
+pub enum Email {
     OPEN(ses::OpenObj),
+    SEND(ses::SendObj),
     CLICK(ses::ClickObj),
     BOUNCE(ses::BounceObj),
     REJECT(ses::RejectObj),
@@ -137,7 +138,7 @@ pub struct EmailEvent {
     pub mail: ses::MailObj,
 
     /// raw SES event
-    pub event: EmailEventType,
+    pub event: Email,
 }
 
 impl Routable for EmailEvent {
