@@ -37,6 +37,7 @@ fn get_email_event_from_json_str(body: &String) -> Result<EmailEvent, String> {
 
         if is_subscription_confirmation {
             println!("[WEB] SNS subscription confirmation link: {}", sub_url);
+            return Err("request is subscription confirmation event, not a email event".to_owned());
         }
     }
 

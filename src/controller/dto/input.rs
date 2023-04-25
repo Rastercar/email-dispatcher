@@ -12,7 +12,7 @@ pub struct EmailRecipient {
     #[validate(email)]
     pub email: String,
 
-    /// An array of email adresses to send the email to and the
+    /// An array of email addresses to send the email to and the
     /// replacements to use on the email html for that email address, eg:
     ///
     /// ```
