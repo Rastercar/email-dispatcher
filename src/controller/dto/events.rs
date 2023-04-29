@@ -62,8 +62,8 @@ impl EmailSendingReceivedEvent {
 impl Routable for EmailSendingReceivedEvent {
     fn routing_key(&self) -> String {
         match self.status {
-            EmailRequestStatus::STARTED => "sending.started".to_string(),
-            EmailRequestStatus::REJECTED => "sending.rejected".to_string(),
+            EmailRequestStatus::STARTED => format!("sending.{}.started", self.request_uuid),
+            EmailRequestStatus::REJECTED => format!("sending.{}.rejected", self.request_uuid),
         }
     }
 }
@@ -79,7 +79,7 @@ pub struct EmailRequestFinishedEvent {
 
 impl Routable for EmailRequestFinishedEvent {
     fn routing_key(&self) -> String {
-        "sending.finished".to_string()
+        format!("sending.{}.finished", self.request_uuid)
     }
 }
 
@@ -120,7 +120,7 @@ impl EmailSendingErrorEvent {
 
 impl Routable for EmailSendingErrorEvent {
     fn routing_key(&self) -> String {
-        "sending.error".to_string()
+        format!("sending.{}.error", self.request_uuid)
     }
 }
 
@@ -143,6 +143,6 @@ pub struct EmailEvent {
 
 impl Routable for EmailEvent {
     fn routing_key(&self) -> String {
-        format!("email.{}", self.event_type)
+        format!("email.{}.{}", self.request_uuid, self.event_type)
     }
 }
