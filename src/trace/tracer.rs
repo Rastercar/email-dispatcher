@@ -12,7 +12,10 @@ pub fn init(service_name: String) -> Result<(), SetGlobalDefaultError> {
         .expect("failed to initialize tracer");
 
     let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-    let subscriber = Registry::default().with(telemetry);
+
+    let subscriber = Registry::default()
+        .with(telemetry)
+        .with(tracing_subscriber::filter::LevelFilter::WARN);
 
     tracing::subscriber::set_global_default(subscriber)?;
 
